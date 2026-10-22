@@ -1,0 +1,9 @@
+.venv/
+__pycache__/
+.pytest_cache/
+*.py[cod]
+*.egg-info/
+data/*.sqlite3
+data/*.sqlite3-*
+data/audio/*
+!data/.gitkeep

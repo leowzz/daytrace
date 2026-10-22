@@ -52,6 +52,6 @@ def test_metadata_is_required(monkeypatch, tmp_path: Path):
         response = client.post(
             "/v1/audio/segments",
             files={"audio": ("segment.opus", b"fake audio", "audio/ogg")},
-            data={"metadata": json.dumps({"segment_id": "segment-1"})},
+            data={"metadata": json.dumps({"segment_id": "segment-1", "session_id": "session-1"})},
         )
     assert response.status_code == 422

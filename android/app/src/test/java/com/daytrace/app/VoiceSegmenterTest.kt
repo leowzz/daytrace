@@ -54,4 +54,43 @@ class VoiceSegmenterTest {
         repeat(20) { segmenter.accept(frame, true) }; segmenter.finish()
         assertEquals(listOf(20), sink.sizes)
     }
+    @Test fun configuredThresholdKeepsBriefReplyWithConfiguredContextAndRealTime() {
+        val sink = Sink(); val segmenter = VoiceSegmenter(true, sink, VadConfig(40, 60, 40, 200))
+        repeat(10) { segmenter.accept(frame, false) }
+        segmenter.accept(frame, true) // 20 ms is below the configured 40 ms minimum.
+        repeat(3) { segmenter.accept(frame, false) }
+        assertTrue(sink.starts.isEmpty())
+        repeat(2) { segmenter.accept(frame, true) }
+        repeat(3) { segmenter.accept(frame, false) }; segmenter.finish()
+        assertEquals(listOf(12L), sink.starts)
+        assertEquals(listOf(7), sink.sizes) // 40 ms pre-roll + 40 ms speech + 60 ms tail.
+    }
+    @Test fun configuredMaximumAlsoAppliesToContinuousMode() {
+        val sink = Sink(); val segmenter = VoiceSegmenter(false, sink, VadConfig(40, 60, 40, 200))
+        repeat(23) { segmenter.accept(frame, false) }; segmenter.finish()
+        assertEquals(listOf(0L, 10L, 20L), sink.starts)
+        assertEquals(listOf(10, 10, 3), sink.sizes)
+    }
+    @Test fun intermittentCandidateCannotExceedConfiguredFileLimitOrLoseFrames() {
+        val sink = Sink(); val segmenter = VoiceSegmenter(true, sink, VadConfig(0, 100, 60, 180))
+        repeat(2) {
+            segmenter.accept(frame, true)
+            repeat(4) { segmenter.accept(frame, false) }
+        }
+        segmenter.accept(frame, true)
+        repeat(5) { segmenter.accept(frame, false) }; segmenter.finish()
+        assertEquals(listOf(0L, 9L), sink.starts)
+        assertEquals(listOf(9, 7), sink.sizes)
+        assertEquals(16L, segmenter.retainedFrames)
+    }
+    @Test fun unsafeAndSubframeTimingsAreRejectedBeforeRecording() {
+        assertNotNull(VadConfig.validationError(null, 600, 400, 30_000))
+        assertNotNull(VadConfig.validationError(301, 600, 400, 30_000))
+        assertNotNull(VadConfig.validationError(-20, 600, 400, 30_000))
+        assertNotNull(VadConfig.validationError(300, 0, 400, 30_000))
+        assertNotNull(VadConfig.validationError(300, 600, 400, 1300))
+        assertNotNull(VadConfig.validationError(Int.MAX_VALUE, 600, 400, 30_000))
+        assertNull(VadConfig.validationError(0, 20, 20, 60))
+        assertTrue(runCatching { VadConfig(maximumSegmentMs = 1300) }.isFailure)
+    }
 }

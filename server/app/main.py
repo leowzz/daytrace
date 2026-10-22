@@ -4,7 +4,6 @@ import hashlib
 import json
 import os
 import tempfile
-import uuid
 from pathlib import Path
 from typing import Any
 
@@ -71,6 +70,18 @@ def _int_field(metadata: dict[str, Any], name: str, default: int | None = None) 
     if parsed < 0:
         raise HTTPException(status_code=422, detail=f"metadata.{name} must be >= 0")
     return parsed
+
+
+def _bool_field(value: Any) -> bool | None:
+    if value is None:
+        return None
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str) and value.strip().lower() in {"true", "1", "yes"}:
+        return True
+    if isinstance(value, str) and value.strip().lower() in {"false", "0", "no"}:
+        return False
+    raise HTTPException(status_code=422, detail="metadata.vad_enabled must be a boolean")
 
 
 async def _save_upload(upload: UploadFile, destination: Path, max_bytes: int) -> tuple[str, int]:
@@ -150,17 +161,17 @@ async def upload_segment(
     metadata: str | None = Form(default=None),
 ) -> JSONResponse:
     payload = _parse_metadata(metadata)
-    segment_id = _required_str(payload, "segment_id", str(uuid.uuid4()))
-    session_id = _required_str(payload, "session_id", "unknown")
+    segment_id = _required_str(payload, "segment_id")
+    if Path(segment_id).name != segment_id or segment_id in {".", ".."}:
+        raise HTTPException(status_code=422, detail="metadata.segment_id must be a simple identifier")
+    session_id = _required_str(payload, "session_id")
     started_at = _int_field(payload, "started_at_utc_ms", _int_field(payload, "start_at_utc_ms"))
     duration_ms = _int_field(payload, "duration_ms", 0) or 0
     if started_at is None:
         raise HTTPException(status_code=422, detail="metadata.started_at_utc_ms is required")
     codec = _required_str(payload, "codec", Path(audio.filename or "audio").suffix.lstrip(".") or "unknown")
     capture_mode = payload.get("capture_mode")
-    vad_enabled = payload.get("vad_enabled")
-    if vad_enabled is not None:
-        vad_enabled = bool(vad_enabled)
+    vad_enabled = _bool_field(payload.get("vad_enabled"))
     bitrate_kbps = _int_field(payload, "bitrate_kbps")
     source_ref = payload.get("source_ref")
     extension = Path(audio.filename or "audio").suffix or ".bin"
