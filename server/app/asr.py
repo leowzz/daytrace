@@ -49,7 +49,7 @@ class MockASR:
 class FasterWhisperASR:
     provider = "faster-whisper"
 
-    def __init__(self, model_name: str, device: str, compute_type: str):
+    def __init__(self, model_name: str, device: str, compute_type: str, cpu_threads: int, num_workers: int):
         try:
             from faster_whisper import WhisperModel
         except ImportError as exc:
@@ -59,7 +59,13 @@ class FasterWhisperASR:
             ) from exc
         resolved_device = "cpu" if device == "auto" else device
         self.model_name = model_name
-        self.model = WhisperModel(model_name, device=resolved_device, compute_type=compute_type)
+        self.model = WhisperModel(
+            model_name,
+            device=resolved_device,
+            compute_type=compute_type,
+            cpu_threads=cpu_threads,
+            num_workers=num_workers,
+        )
 
     def transcribe(self, audio_path: Path, language: str | None = None) -> ASRResult:
         segments, info = self.model.transcribe(
@@ -107,9 +113,16 @@ class FasterWhisperASR:
         )
 
 
-def build_asr(backend: str, model: str, device: str, compute_type: str):
+def build_asr(
+    backend: str,
+    model: str,
+    device: str,
+    compute_type: str,
+    cpu_threads: int = 8,
+    num_workers: int = 1,
+):
     if backend == "mock":
         return MockASR()
     if backend in {"faster-whisper", "faster_whisper"}:
-        return FasterWhisperASR(model, device, compute_type)
+        return FasterWhisperASR(model, device, compute_type, cpu_threads, num_workers)
     raise ASRUnavailableError(f"Unsupported ASR backend: {backend}")

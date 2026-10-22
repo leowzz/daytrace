@@ -7,7 +7,7 @@ import tempfile
 from pathlib import Path
 from typing import Any
 
-from fastapi import FastAPI, File, Form, HTTPException, Query, UploadFile
+from fastapi import Body, FastAPI, File, Form, HTTPException, Query, UploadFile
 from fastapi.responses import JSONResponse
 
 from .asr import ASRResult, ASRUnavailableError, build_asr
@@ -36,6 +36,8 @@ def _get_asr():
             settings.asr_model,
             settings.asr_device,
             settings.asr_compute_type,
+            settings.asr_cpu_threads,
+            settings.asr_num_workers,
         )
     return asr_engine
 
@@ -205,6 +207,10 @@ async def upload_segment(
                 now,
             ),
         )
+        connection.execute(
+            "UPDATE audio_segments SET metadata_json=? WHERE segment_id=?",
+            (json.dumps(payload, ensure_ascii=False), segment_id),
+        )
     try:
         result = _get_asr().transcribe(destination, settings.asr_language)
         _write_processing_result(segment_id, result)
@@ -225,6 +231,55 @@ async def upload_segment(
             )
         return JSONResponse(status_code=500, content={"segment_id": segment_id, "status": "failed", "error": error})
     return JSONResponse(status_code=201, content=database.get_segment(segment_id))
+
+
+@app.post("/v1/capture-events")
+def upload_capture_events(batch: dict[str, Any] = Body(...)) -> dict[str, Any]:
+    source_id = _required_str(batch, "source_id")
+    events = batch.get("events")
+    if not isinstance(events, list) or not 1 <= len(events) <= 100:
+        raise HTTPException(status_code=422, detail="events must contain 1 to 100 events")
+    rows = []
+    for item in events:
+        if not isinstance(item, dict) or not isinstance(item.get("payload"), dict):
+            raise HTTPException(status_code=422, detail="each event needs event_id and payload")
+        event_id = _required_str(item, "event_id")
+        if len(event_id) != 64 or any(c not in "0123456789abcdef" for c in event_id):
+            raise HTTPException(status_code=422, detail="event_id must be a SHA-256 identifier")
+        payload = item["payload"]
+        observed = _int_field(payload, "observed_at_utc_ms")
+        if observed is None:
+            raise HTTPException(status_code=422, detail="observed_at_utc_ms is required")
+        encoded = json.dumps(payload, ensure_ascii=False)
+        if len(encoded.encode("utf-8")) > 65536:
+            raise HTTPException(status_code=413, detail="event payload too large")
+        rows.append((event_id, source_id, str(payload.get("session_id", "")), observed,
+                     _required_str(payload, "event"), encoded))
+    with database.transaction() as connection:
+        for row in rows:
+            previous = connection.execute(
+                "SELECT source_id, payload_json FROM capture_events WHERE event_id=?", (row[0],)
+            ).fetchone()
+            if previous and (previous["source_id"] != row[1] or json.loads(previous["payload_json"]) != json.loads(row[5])):
+                raise HTTPException(status_code=409, detail="event_id conflicts with existing evidence")
+            connection.execute("INSERT OR IGNORE INTO capture_events VALUES (?, ?, ?, ?, ?, ?)", row)
+    return {"event_ids": [row[0] for row in rows]}
+
+
+@app.get("/v1/capture-events")
+def list_capture_events(
+    session_id: str | None = Query(default=None),
+    limit: int = Query(default=100, ge=1, le=500),
+    offset: int = Query(default=0, ge=0),
+) -> dict[str, Any]:
+    with database.connect() as connection:
+        where = " WHERE session_id=?" if session_id is not None else ""
+        args = ([session_id] if session_id is not None else []) + [limit, offset]
+        rows = connection.execute(
+            "SELECT * FROM capture_events" + where + " ORDER BY observed_at_utc_ms DESC, event_id LIMIT ? OFFSET ?", args
+        ).fetchall()
+    return {"items": [{"event_id": row["event_id"], "source_id": row["source_id"],
+                       "payload": json.loads(row["payload_json"])} for row in rows], "limit": limit, "offset": offset}
 
 
 @app.get("/v1/segments")

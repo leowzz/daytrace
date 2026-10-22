@@ -35,6 +35,17 @@ CREATE TABLE IF NOT EXISTS audio_segments (
 CREATE INDEX IF NOT EXISTS idx_audio_segments_session_time
     ON audio_segments(session_id, started_at_utc_ms);
 
+CREATE TABLE IF NOT EXISTS capture_events (
+    event_id TEXT PRIMARY KEY,
+    source_id TEXT NOT NULL,
+    session_id TEXT NOT NULL,
+    observed_at_utc_ms INTEGER NOT NULL,
+    event TEXT NOT NULL,
+    payload_json TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_capture_events_session_time
+    ON capture_events(session_id, observed_at_utc_ms);
+
 CREATE TABLE IF NOT EXISTS transcripts (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     segment_id TEXT NOT NULL UNIQUE REFERENCES audio_segments(segment_id) ON DELETE CASCADE,
@@ -87,6 +98,9 @@ class Database:
     def init(self) -> None:
         with self.connect() as connection:
             connection.executescript(SCHEMA)
+            columns = {row[1] for row in connection.execute("PRAGMA table_info(audio_segments)")}
+            if "metadata_json" not in columns:
+                connection.execute("ALTER TABLE audio_segments ADD COLUMN metadata_json TEXT")
 
     @contextmanager
     def transaction(self) -> Iterator[sqlite3.Connection]:
@@ -108,6 +122,7 @@ class Database:
             if row is None:
                 return None
             result = dict(row)
+            result["metadata"] = json.loads(result.pop("metadata_json") or "{}")
             transcript = connection.execute(
                 "SELECT * FROM transcripts WHERE segment_id = ?", (segment_id,)
             ).fetchone()

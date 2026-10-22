@@ -38,6 +38,7 @@ import java.util.Locale
 
 class MainActivity : ComponentActivity() {
     private val store get() = (application as DayTraceApp).store
+    private val serverPreferences by lazy { ServerPreferences(applicationContext) }
     private var feedback by mutableStateOf<String?>(null)
     private var playing by mutableStateOf<String?>(null)
     private var ioBusy by mutableStateOf(false)
@@ -180,6 +181,7 @@ class MainActivity : ComponentActivity() {
         val state by store.state.collectAsStateWithLifecycle()
         val segments by store.segments.collectAsStateWithLifecycle()
         val settings by store.settings.collectAsStateWithLifecycle()
+        val serverAddress by serverPreferences.address.collectAsStateWithLifecycle()
         var tab by remember { mutableIntStateOf(0) }
         var consent by remember { mutableStateOf(false) }
         var deleting by remember { mutableStateOf<Segment?>(null) }
@@ -273,6 +275,8 @@ class MainActivity : ComponentActivity() {
                         }
                     }
                 } else {
+                    item { Text("服务设置", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.SemiBold) }
+                    item { ServerSettings(serverAddress) { serverPreferences.save(it) } }
                     item { Text("录音设置", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.SemiBold) }
                     item {
                         Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {

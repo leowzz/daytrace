@@ -37,9 +37,18 @@ data class AudioSettings(val vadEnabled: Boolean = true, val bitrate: Int = 16_0
 class DayTraceApp : Application() {
     lateinit var store: RecordingStore
         private set
+    lateinit var logs: AppLogs
+        private set
+    lateinit var uploads: UploadManager
+        private set
+    lateinit var serverPreferences: ServerPreferences
+        private set
     override fun onCreate() {
         super.onCreate()
         store = RecordingStore(this)
+        logs = AppLogs(File(filesDir, "app-events.jsonl"), store.captureEvents)
+        serverPreferences = ServerPreferences(this)
+        uploads = UploadManager(this, store, logs)
     }
 }
 

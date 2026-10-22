@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
@@ -8,7 +9,7 @@
     <uses-feature android:name="android.hardware.microphone" android:required="true" />
     <application android:name=".DayTraceApp" android:allowBackup="false" android:dataExtractionRules="@xml/data_extraction_rules"
         android:label="DayTrace" android:icon="@drawable/ic_mic" android:theme="@style/Theme.DayTrace"
-        android:supportsRtl="true">
+        android:supportsRtl="true" android:usesCleartextTraffic="true">
         <activity android:name=".MainActivity" android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />

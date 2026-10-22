@@ -1,0 +1,19 @@
+services:
+  daytrace-server:
+    image: daytrace-server:cpu
+    container_name: daytrace-server
+    restart: unless-stopped
+    env_file:
+      - .env
+    ports:
+      - "${DAYTRACE_BIND_ADDRESS:-0.0.0.0}:${DAYTRACE_PORT:-8000}:8000"
+    volumes:
+      - /data/daytrace/data:/var/lib/daytrace/data
+      - /data/daytrace/models:/var/lib/daytrace/models
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=3)"]
+      interval: 30s
+      timeout: 5s
+      start_period: 20s
+      retries: 3
+

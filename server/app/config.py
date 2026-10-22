@@ -23,6 +23,8 @@ class Settings:
     asr_model: str
     asr_device: str
     asr_compute_type: str
+    asr_cpu_threads: int
+    asr_num_workers: int
     asr_language: str | None
     max_upload_bytes: int
 
@@ -44,6 +46,8 @@ def load_settings() -> Settings:
         asr_model=os.getenv("DAYTRACE_ASR_MODEL", "small"),
         asr_device=os.getenv("DAYTRACE_ASR_DEVICE", "auto"),
         asr_compute_type=os.getenv("DAYTRACE_ASR_COMPUTE_TYPE", "int8"),
+        asr_cpu_threads=_env_int("DAYTRACE_ASR_CPU_THREADS", 8),
+        asr_num_workers=_env_int("DAYTRACE_ASR_NUM_WORKERS", 1),
         asr_language=language,
         max_upload_bytes=_env_int("DAYTRACE_MAX_UPLOAD_BYTES", 128 * 1024 * 1024),
     )
