@@ -1,0 +1,31 @@
+# Build outputs and local caches
+.gradle/
+.kotlin/
+**/build/
+.cxx/
+.externalNativeBuild/
+*.apk
+*.aab
+*.ap_
+
+# Local SDK paths and IDE state
+local.properties
+.idea/
+*.iml
+
+# Generated packages, downloaded archives, device recordings and diagnostics
+/artifacts/
+
+# Local secrets and signing material; keep example configuration files
+.env
+.env.*
+!.env.example
+!.env.template
+*.jks
+*.keystore
+keystore.properties
+
+# Operating system files
+.DS_Store
+Thumbs.db
+desktop.ini
