@@ -2,6 +2,7 @@ package com.daytrace.app
 
 import android.app.Application
 import android.content.Context
+import android.os.SystemClock
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -11,6 +12,7 @@ import java.io.File
 import java.io.RandomAccessFile
 import java.security.KeyStore
 import java.util.UUID
+import java.time.ZoneId
 import javax.crypto.KeyGenerator
 import javax.crypto.SecretKey
 
@@ -29,7 +31,8 @@ data class RecordingState(
     val message: String = "准备好，记录此刻。"
 )
 data class Segment(val file: File, val info: EncryptedAudio.Info)
-data class AudioSettings(val vadEnabled: Boolean = true, val bitrate: Int = 16_000, val vadMode: Int = 2)
+data class AudioSettings(val vadEnabled: Boolean = true, val bitrate: Int = 16_000, val vadMode: Int = 2,
+    val vadConfig: VadConfig = VadConfig())
 
 class DayTraceApp : Application() {
     lateinit var store: RecordingStore
@@ -43,9 +46,13 @@ class DayTraceApp : Application() {
 class RecordingStore(private val context: Context) {
     val directory = File(context.filesDir, "recordings").apply { mkdirs() }
     val diagnostics = File(context.filesDir, "diagnostics.csv")
+    val captureEvents = File(context.filesDir, "capture-events.jsonl")
     private val prefs = context.getSharedPreferences("recording", Context.MODE_PRIVATE)
     private val settingsState = MutableStateFlow(AudioSettings(prefs.getBoolean("vadEnabled", true),
-        prefs.getInt("bitrate", 16_000), prefs.getInt("vadMode", 2)))
+        prefs.getInt("bitrate", 16_000), prefs.getInt("vadMode", 2), runCatching {
+            VadConfig(prefs.getInt("preRollMs", 300), prefs.getInt("silenceMs", 600),
+                prefs.getInt("minimumSpeechMs", 400), prefs.getInt("maximumSegmentMs", 30_000))
+        }.getOrDefault(VadConfig())))
     val settings = settingsState.asStateFlow()
     private val mutable = MutableStateFlow(RecordingState())
     val state = mutable.asStateFlow()
@@ -84,6 +91,8 @@ class RecordingStore(private val context: Context) {
                 val info = EncryptedAudio.scan(file, key, allowPartial = true)
                 RandomAccessFile(file, "rw").use { it.setLength(info.validLength) }
                 check(file.renameTo(File(directory, file.nameWithoutExtension + ".dta")))
+                event("RECOVERED_SEGMENT", data = mapOf("segment_id" to info.header.segmentId,
+                    "start_at_utc_ms" to info.header.startedAt, "recovered_duration_ms" to info.durationMs))
             }.onFailure { recoveryFailed = true }
         }
         refreshSegments()
@@ -91,6 +100,7 @@ class RecordingStore(private val context: Context) {
         mutable.value = mutable.value.copy(capturedMs = maxOf(mutable.value.capturedMs, recoveredMs), retainedMs = recoveredMs)
         if (recoveryFailed) mutable.value = mutable.value.copy(message = "部分中断文件恢复失败，原文件已保留。可导出诊断日志。")
         persist()
+        if (unexpected) event("PROCESS_RESTART_AFTER_INTERRUPTION")
     }
 
     @Synchronized fun update(transform: (RecordingState) -> RecordingState, save: Boolean = false) {
@@ -108,6 +118,7 @@ class RecordingStore(private val context: Context) {
             .put("startedAt", s.startedAt).put("capturedMs", s.capturedMs)
             .put("retainedMs", s.retainedMs).put("voiceMs", s.voiceMs).put("vadSpeech", s.vadSpeech)
             .put("vadEnabled", settingsState.value.vadEnabled).put("bitrate", settingsState.value.bitrate)
+            .put("vadTiming", JSONObject(settingsState.value.vadConfig.eventData()))
             .put("interruptions", s.interruptions).put("silenced", s.silenced).put("message", s.message)
         val temp = File(context.filesDir, "status.tmp").apply { writeText(status.toString(2)) }
         check(temp.renameTo(File(context.filesDir, "status.json")))
@@ -118,12 +129,15 @@ class RecordingStore(private val context: Context) {
             else RecordingState(phase = Phase.STARTING, sessionId = UUID.randomUUID().toString(), startedAt = System.currentTimeMillis(), message = "正在启动麦克风…")
         }, true)
     }
-    fun configure(value: AudioSettings) {
+    @Synchronized fun configure(value: AudioSettings) {
         check(state.value.phase !in setOf(Phase.STARTING, Phase.RECORDING, Phase.STOPPING))
         require(value.bitrate in listOf(12_000, 16_000, 24_000, 32_000) && value.vadMode in 0..3)
         settingsState.value = value
         prefs.edit().putBoolean("vadEnabled", value.vadEnabled).putInt("bitrate", value.bitrate)
-            .putInt("vadMode", value.vadMode).apply()
+            .putInt("vadMode", value.vadMode).putInt("preRollMs", value.vadConfig.preRollMs)
+            .putInt("silenceMs", value.vadConfig.silenceMs).putInt("minimumSpeechMs", value.vadConfig.minimumSpeechMs)
+            .putInt("maximumSegmentMs", value.vadConfig.maximumSegmentMs).apply()
+        persist()
     }
     fun refreshSegments() {
         segmentsFlow.value = directory.listFiles()?.filter { it.extension == "dta" }?.mapNotNull { file ->
@@ -138,12 +152,25 @@ class RecordingStore(private val context: Context) {
     }
     fun delete(segment: Segment) {
         check(segment.file.delete()) { "删除失败" }
+        event("DELETED_SEGMENT", data = mapOf("segment_id" to segment.info.header.segmentId,
+            "segment_session_id" to segment.info.header.sessionId, "start_at_utc_ms" to segment.info.header.startedAt,
+            "end_at_utc_ms" to Timeline.absolute(segment.info, segment.info.durationMs)))
         refreshSegments()
     }
     fun storageBytes() = directory.listFiles()?.sumOf { it.length() } ?: 0L
-    @Synchronized fun event(name: String, detail: String = "") {
+    @Synchronized fun event(name: String, detail: String = "", data: Map<String, Any?> = emptyMap()) {
         if (!diagnostics.exists()) diagnostics.writeText("timestamp_utc_ms,event,session_id,captured_ms,interruptions,detail\n")
         val s = mutable.value
-        diagnostics.appendText("${System.currentTimeMillis()},$name,${s.sessionId},${s.capturedMs},${s.interruptions},\"${detail.replace("\"", "\"\"").replace('\n', ' ')}\"\n")
+        val observedAt = System.currentTimeMillis()
+        diagnostics.appendText("$observedAt,$name,${s.sessionId},${s.capturedMs},${s.interruptions},\"${detail.replace("\"", "\"\"").replace('\n', ' ')}\"\n")
+        captureEvents.appendText(JSONObject().put("schema_version", 1).put("event", name)
+            .put("observed_at_utc_ms", observedAt).put("observed_elapsed_realtime_ms", SystemClock.elapsedRealtime())
+            .put("device_timezone_at_event", ZoneId.systemDefault().id).put("session_id", s.sessionId)
+            .put("captured_ms", s.capturedMs).put("retained_ms", s.retainedMs).put("silenced", s.silenced)
+            .put("detail", detail).put("data", JSONObject(data)).toString() + "\n")
     }
+
+    @Synchronized fun exportLogs(): Pair<ByteArray, ByteArray> =
+        (if (diagnostics.exists()) diagnostics.readBytes() else ByteArray(0)) to
+            (if (captureEvents.exists()) captureEvents.readBytes() else ByteArray(0))
 }

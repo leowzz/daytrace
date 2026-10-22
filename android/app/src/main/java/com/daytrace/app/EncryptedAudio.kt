@@ -64,7 +64,8 @@ object EncryptedAudio {
         else "DTA1|${h.startedAt}|${h.sessionId}|${h.segmentId}|$index").toByteArray(Charsets.UTF_8)
 
     /** Only a physically incomplete trailing block is recoverable. Authentication failures are fatal. */
-    fun scan(file: File, key: SecretKey? = null, pcm: OutputStream? = null, allowPartial: Boolean = false): Info {
+    fun scan(file: File, key: SecretKey? = null, pcm: OutputStream? = null, allowPartial: Boolean = false,
+        opusComments: Map<String, String>? = null): Info {
         RandomAccessFile(file, "r").use { input ->
             val magic = input.readInt()
             require(magic == MAGIC || magic == OPUS_MAGIC) { "录音格式不正确" }
@@ -92,7 +93,9 @@ object EncryptedAudio {
                     val plain = cipher.doFinal(encrypted)
                     // A recovered stream may end on a normal page; mark its last complete audio page EOS.
                     if (header.codec == "opus" && input.filePointer == input.length() && cumulative > 0) OggOpus.markEndOfStream(plain)
-                    pcm?.write(plain)
+                    if (header.codec == "opus" && index == 1 && opusComments != null)
+                        pcm?.write(OggOpus.withComments(plain, opusComments))
+                    else pcm?.write(plain)
                 } else input.seek(input.filePointer + 12 + length)
                 bytes = cumulative
                 validLength = input.filePointer
@@ -110,7 +113,9 @@ object EncryptedAudio {
     }
 
     fun export(file: File, key: SecretKey, output: OutputStream) {
-        if (scan(file).header.codec == "opus") scan(file, key, output) else exportWav(file, key, output)
+        val info = scan(file)
+        if (info.header.codec == "opus") scan(file, key, output, opusComments = Timeline.opusComments(info))
+        else exportWav(file, key, output)
     }
 
     fun wavHeader(pcmBytes: Long): ByteArray {

@@ -68,6 +68,37 @@ class OggOpus(private val encoder: PacketEncoder, private val serial: Int,
         return buffer.array().also { updateCrc(it) }
     }
     companion object {
+        /** Replace our single-packet OpusTags page, preserving serial/sequence and all audio pages. */
+        fun withComments(page: ByteArray, comments: Map<String, String>): ByteArray {
+            require(page.size >= 28 && String(page, 0, 4, Charsets.US_ASCII) == "OggS")
+            val segments = page[26].toInt() and 255
+            val payload = 27 + segments
+            require(segments > 0 && payload + 16 <= page.size)
+            require((0 until segments - 1).all { (page[27 + it].toInt() and 255) == 255 })
+            require((page[26 + segments].toInt() and 255) < 255)
+            require(String(page, payload, 8, Charsets.US_ASCII) == "OpusTags")
+            val vendorSize = ByteBuffer.wrap(page).order(ByteOrder.LITTLE_ENDIAN).getInt(payload + 8)
+            require(vendorSize in 0..(page.size - payload - 16))
+            val vendor = page.copyOfRange(payload + 12, payload + 12 + vendorSize)
+            val tags = comments.map { (key, value) ->
+                require(key.matches(Regex("[A-Z0-9_]+")))
+                "$key=$value".toByteArray(Charsets.UTF_8)
+            }
+            val packet = ByteBuffer.allocate(16 + vendor.size + tags.sumOf { 4 + it.size }).order(ByteOrder.LITTLE_ENDIAN).apply {
+                put("OpusTags".toByteArray()); putInt(vendor.size); put(vendor); putInt(tags.size)
+                tags.forEach { putInt(it.size); put(it) }
+            }.array()
+            val lacingCount = packet.size / 255 + 1
+            require(lacingCount <= 255)
+            val result = ByteArray(27 + lacingCount + packet.size)
+            page.copyInto(result, 0, 0, 27)
+            result[26] = lacingCount.toByte()
+            repeat(lacingCount - 1) { result[27 + it] = 255.toByte() }
+            result[27 + lacingCount - 1] = (packet.size % 255).toByte()
+            packet.copyInto(result, 27 + lacingCount)
+            return result.also(::updateCrc)
+        }
+
         fun markEndOfStream(page: ByteArray) {
             require(page.size >= 27 && String(page, 0, 4, Charsets.US_ASCII) == "OggS")
             page[5] = (page[5].toInt() or 4).toByte(); updateCrc(page)

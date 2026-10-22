@@ -64,6 +64,9 @@ class MainActivity : ComponentActivity() {
     private val csvExport = registerForActivityResult(ActivityResultContracts.CreateDocument("text/csv")) { uri ->
         if (uri != null) export(uri, store.diagnostics, true)
     }
+    private val bundleExport = registerForActivityResult(ActivityResultContracts.CreateDocument("application/zip")) { uri ->
+        if (uri != null) exportBundle(uri)
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -119,6 +122,27 @@ class MainActivity : ComponentActivity() {
             }
             ioBusy = false
             feedback = result.fold({ "已导出${if (csv) "诊断日志" else "标准音频文件"}。" }, { "导出失败：${it.message}" })
+        }
+    }
+
+    private fun exportBundle(uri: Uri) {
+        val files = store.segments.value.map { it.file }
+        ioBusy = true
+        lifecycleScope.launch {
+            val result = withContext(Dispatchers.IO) {
+                runCatching {
+                    val (diagnostics, journal) = store.exportLogs()
+                    contentResolver.openOutputStream(uri, "wt")!!.use {
+                        AnalysisBundle.write(it, files, store.key, diagnostics, journal)
+                    }
+                }.onFailure {
+                    // This document was just created by this export; remove an unusable partial archive.
+                    runCatching { contentResolver.delete(uri, null, null) }
+                }
+            }
+            ioBusy = false
+            feedback = result.fold({ "已导出全部已保存录音、原始时间线与采集日志。远端可据此对齐转写时间；当前尚未生成文本。" },
+                { "分析包导出失败：${it.message}" })
         }
     }
 
@@ -219,10 +243,17 @@ class MainActivity : ComponentActivity() {
                     item {
                         InfoCard("锁屏，也继续记录", "录音由独立前台服务运行，通知栏可暂停或停止。建议在系统电池设置中将 DayTrace 设为「无限制」，并在最近任务中锁定应用。")
                     }
-                    item { Text("本次采集 ${formatDuration(state.capturedMs)} · 保留 ${formatDuration(state.retainedMs)}\n${if (settings.vadEnabled) "检测人声 ${formatDuration(state.voiceMs)} · WebRTC VAD" else "连续录音 · 不过滤静音"}\n16 kHz / 单声道 · Opus ${settings.bitrate / 1000} kbps\n最长 30 秒一段 · AES-GCM 本地加密 · 中断 ${state.interruptions} 次", color = Color(0xFF788179), fontSize = 12.sp, lineHeight = 21.sp) }
+                    item { Text("本次采集 ${formatDuration(state.capturedMs)} · 保留 ${formatDuration(state.retainedMs)}\n${if (settings.vadEnabled) "检测人声 ${formatDuration(state.voiceMs)} · WebRTC VAD" else "连续录音 · 不过滤静音"}\n16 kHz / 单声道 · Opus ${settings.bitrate / 1000} kbps\n当前配置最长 ${settings.vadConfig.maximumSegmentMs} ms 一段\nAES-GCM 本地加密 · 中断 ${state.interruptions} 次", color = Color(0xFF788179), fontSize = 12.sp, lineHeight = 21.sp) }
                 } else if (tab == 1) {
                     item { Text("声音时间线", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.SemiBold) }
-                    item { Text("${segments.size} 段已保存。人声结束或达到 30 秒时分段；暂停或停止也会保存有效尾段。", color = Color(0xFF788179), fontSize = 13.sp) }
+                    item { Text("${segments.size} 段已保存。新录音按当前配置最长 ${settings.vadConfig.maximumSegmentMs} ms 分段；人声结束、暂停或停止也会保存有效尾段。", color = Color(0xFF788179), fontSize = 13.sp) }
+                    item {
+                        OutlinedButton(onClick = { bundleExport.launch("DayTrace-analysis-${SimpleDateFormat("yyyyMMdd-HHmmss", Locale.US).format(Date())}.zip") },
+                            enabled = !active && !ioBusy && segments.isNotEmpty(), modifier = Modifier.fillMaxWidth()) {
+                            Text(if (ioBusy) "正在处理…" else "导出分析包（录音 + 时间线）")
+                        }
+                        Text("用于远端转写和事件回溯；含全部已保存录音、时间信息和采集日志。请先暂停。", fontSize = 12.sp, color = Color(0xFF788179))
+                    }
                     if (segments.isEmpty()) item { InfoCard("还没有录音", "开始录音后，声音会按时间保存在这里。所有音频仅留在本机。") }
                     items(segments, key = { it.file.name }) { segment ->
                         Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
@@ -250,7 +281,7 @@ class MainActivity : ComponentActivity() {
                                     Text("只保存人声", fontWeight = FontWeight.SemiBold)
                                     Switch(checked = settings.vadEnabled, onCheckedChange = { store.configure(settings.copy(vadEnabled = it)) }, enabled = !active)
                                 }
-                                Text("WebRTC VAD · 保留开口前 300 ms\n静音 600 ms 结束 · 不足 400 ms 的语音不保存\n关闭后连续保存全部声音。请先暂停再修改。", fontSize = 12.sp, lineHeight = 20.sp)
+                                Text("WebRTC VAD · 前置 ${settings.vadConfig.preRollMs} ms\n静音 ${settings.vadConfig.silenceMs} ms 结束 · 最短累计人声 ${settings.vadConfig.minimumSpeechMs} ms\n关闭后连续保存全部声音。请先暂停再修改。", fontSize = 12.sp, lineHeight = 20.sp)
                                 Text("Opus 比特率", fontWeight = FontWeight.SemiBold)
                                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                                     listOf(12, 16, 24, 32).forEach { kbps ->
@@ -269,7 +300,13 @@ class MainActivity : ComponentActivity() {
                             }
                         }
                     }
-                    item { InfoCard("本地存储", "音频使用 Android Keystore 密钥加密。最多保存 4 GB，剩余空间低于 128 MB 时停止并提示，不会自动覆盖旧录音。卸载应用会删除录音和密钥，请先导出。导出的 Opus / WAV 为未加密文件。") }
+                    item {
+                        TimingSettings(settings.vadConfig, active) { config ->
+                            store.configure(store.settings.value.copy(vadConfig = config))
+                            feedback = "时长已保存，下次开始或继续录音时生效。"
+                        }
+                    }
+                    item { InfoCard("本地存储", "音频使用 Android Keystore 密钥加密。最多保存 4 GB，剩余空间低于 128 MB 时停止并提示，不会自动覆盖旧录音。卸载应用会删除录音和密钥，请先导出。导出的 Opus / WAV 和分析包均未加密。") }
                     item { InfoCard("当前版本", "已启用 Opus 压缩和 WebRTC VAD。人声检测可能误判，重要记录可关闭筛选。上传和 AI 总结尚未接入；长时间稳定性与耗电仍需实测。") }
                     item {
                         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {

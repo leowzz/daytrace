@@ -1,6 +1,8 @@
 # DayTrace · 本地语音记忆 Demo
 
-原生 Kotlin + Jetpack Compose Android 应用。当前 **0.2.0：后台录音 + Opus + WebRTC VAD**。
+原生 Kotlin + Jetpack Compose Android 应用。当前 **0.2.1：后台录音 + Opus + WebRTC VAD + 时间线分析包**。
+
+最终目标是让远端按时间回溯事件和上下文。时间映射和后续转写/摘要协议见 [事件回溯数据契约](docs/memory-data-contract.md)。
 
 ## 功能
 
@@ -11,13 +13,14 @@
 - 标准 Ogg/Opus：OpusHead、OpusTags、48 kHz granule、pre-skip、EOS 裁剪、CRC。导出 .opus 可由 Android/FFmpeg 解码。
 - Android Keystore AES-256-GCM 本地加密；暂停/继续/停止、通知操作、时间线、试听、导出和删除。旧 PCM 仍支持 WAV 导出。
 - 显示采集/保留/人声判定时长、输入电平、VAD 状态；可导出诊断 CSV。
+- 记录页可导出录音与时间索引的 ZIP 分析包；Opus 单文件也携带 UTC 时间和片段标识。目前尚无转写文本。
 - 4 GiB 存储上限、128 MiB 剩余空间下限，不自动覆盖录音。
 
 16 kbps 连续保存约 8 MB/小时，VAD 模式随说话比例减少。尚未实现 Room、上传、ASR、AI 总结与长时间功耗报告。
 
 ## 构建
 
-安装包：`artifacts/DayTrace-0.2.0-debug.apk`。
+安装包：`artifacts/DayTrace-0.2.1-debug.apk`。
 
 需要 JDK 17、SDK 35、NDK 28.0.13004108、CMake 3.22.1。Gradle 8.9 wrapper 已包含，Kotlin 2.0.21 / AGP 8.7.3。原生源码固定在 `android/app/src/main/cpp/vendor`，构建不在线下载原生依赖。支持 arm64-v8a、x86_64。
 
@@ -41,7 +44,7 @@ adb -s fa7b189f shell am start -n com.daytrace.app/.MainActivity
 
 每约 1 秒落盘完整认证页，每 5 页 fsync。未完成文件为 .part；下次启动恢复完整且认证成功的块。恢复 Ogg 导出时补最后一页 EOS/CRC。认证失败原件保留供诊断，不冒充有效录音。进程死亡可能丢失内存队列、候选语音和未落盘尾页。
 
-试听在私有 cache 临时解密，结束/界面销毁/下次启动清理；主动导出的文件未加密。音频不上传、不进入备份/迁移；卸载删除文件及密钥。
+试听在私有 cache 临时解密，结束/界面销毁/下次启动清理；主动导出的文件和分析包未加密。音频不上传、不进入备份/迁移；卸载删除文件及密钥。
 
 系统 Opus 能力会被探测并记入诊断；当前统一使用固定 libopus，稳定控制帧长、延迟和容器。Native 启用 -O2，JNI 对齐 16 KiB。
 

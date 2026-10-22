@@ -38,7 +38,9 @@ class RecordingService : Service() {
     private var callback: AudioManager.AudioRecordingCallback? = null
     @Volatile private var lastSampleAt = 0L
     @Volatile private var captureStartedAt = 0L
+    @Volatile private var captureStartedElapsedMs = 0L
     private var audioSettings = AudioSettings()
+    private var captureRunId = ""
 
     override fun onCreate() {
         super.onCreate()
@@ -81,6 +83,7 @@ class RecordingService : Service() {
                 if (Build.VERSION.SDK_INT >= 30) ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE else 0)
             store.begin()
             audioSettings = store.settings.value
+            captureRunId = UUID.randomUUID().toString()
             // Held only while capturing/draining. A watchdog and all terminal paths release it.
             wakeLock = getSystemService(PowerManager::class.java).newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "DayTrace:Capture").apply {
                 setReferenceCounted(false)
@@ -139,12 +142,22 @@ class RecordingService : Service() {
             audio.registerAudioRecordingCallback(main::post, recordingCallback)
             if (!running.get()) return
             audio.startRecording()
+            captureStartedElapsedMs = SystemClock.elapsedRealtime()
             captureStartedAt = System.currentTimeMillis()
             check(audio.recordingState == AudioRecord.RECORDSTATE_RECORDING) { "麦克风启动失败" }
             store.update({ if (it.phase == Phase.STARTING) it.copy(phase = Phase.RECORDING, message = "持续采音中 · 音频仅保存在本机") else it }, true)
             val systemOpus = runCatching { MediaCodecList(MediaCodecList.REGULAR_CODECS)
                 .findEncoderForFormat(MediaFormat.createAudioFormat("audio/opus", 16_000, 1)) }.getOrNull()
-            store.event("START", "encoder=libopus-1.6.1;system_opus=$systemOpus;vad=${audioSettings.vadEnabled};bitrate=${audioSettings.bitrate}")
+            store.event("START", "encoder=libopus-1.6.1;system_opus=$systemOpus;vad=${audioSettings.vadEnabled};bitrate=${audioSettings.bitrate}",
+                mapOf("capture_run_id" to captureRunId, "capture_origin_utc_ms" to captureStartedAt,
+                    "capture_origin_elapsed_realtime_ms" to captureStartedElapsedMs,
+                    "time_source" to "device_wall_clock_plus_sample_offset", "vad_enabled" to audioSettings.vadEnabled,
+                    "vad_mode" to audioSettings.vadMode, "bitrate_bps" to audioSettings.bitrate,
+                    "pre_roll_ms" to audioSettings.vadConfig.preRollMs,
+                    "silence_end_ms" to audioSettings.vadConfig.silenceMs,
+                    "minimum_speech_ms" to audioSettings.vadConfig.minimumSpeechMs,
+                    "maximum_segment_ms" to audioSettings.vadConfig.maximumSegmentMs,
+                    "frame_duration_ms" to 20))
             while (running.get()) {
                 val frame = ByteArray(640) // 20 ms, 16 kHz, mono PCM16
                 var count = 0
@@ -191,6 +204,8 @@ class RecordingService : Service() {
                 val at = captureStartedAt + firstFrame * 20
                 writer = EncryptedAudio.Writer(file!!, store.key,
                     EncryptedAudio.Header(at, base.sessionId, id, "opus", audioSettings.vadEnabled, audioSettings.bitrate))
+                store.event("SEGMENT_START", data = mapOf("segment_id" to id, "capture_run_id" to captureRunId,
+                    "start_at_utc_ms" to at, "first_frame_index" to firstFrame, "input_sample_rate_hz" to 16_000))
                 val encoder = OpusEncoder(audioSettings.bitrate)
                 try { ogg = OggOpus(encoder, id.hashCode()) { page, pcmBytes -> writer!!.appendPayload(page, pcmBytes) } }
                 catch (e: Exception) { encoder.close(); throw e }
@@ -202,12 +217,18 @@ class RecordingService : Service() {
             }
             override fun end() {
                 ogg?.close(); ogg = null
-                writer?.let { store.finish(it, file!!) }; writer = null; file = null
+                writer?.let {
+                    store.finish(it, file!!)
+                    store.event("SEGMENT_END", data = mapOf("segment_id" to it.header.segmentId,
+                        "capture_run_id" to captureRunId, "start_at_utc_ms" to it.header.startedAt,
+                        "duration_ms" to it.pcmBytes * 1000 / EncryptedAudio.BYTES_PER_SECOND))
+                }
+                writer = null; file = null
             }
         }
         try {
             if (audioSettings.vadEnabled) vad = WebRtcDetector(audioSettings.vadMode)
-            segmenter = VoiceSegmenter(audioSettings.vadEnabled, sink)
+            segmenter = VoiceSegmenter(audioSettings.vadEnabled, sink, audioSettings.vadConfig)
             while (!captureDone.get() || queue.isNotEmpty()) {
                 val frame = queue.poll(200, TimeUnit.MILLISECONDS) ?: continue
                 val speech = vad?.isSpeech(frame) ?: false
