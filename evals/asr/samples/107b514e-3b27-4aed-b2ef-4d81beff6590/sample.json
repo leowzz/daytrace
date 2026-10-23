@@ -1,0 +1,97 @@
+{
+  "schema_version": 1,
+  "sample_id": "107b514e-3b27-4aed-b2ef-4d81beff6590",
+  "retrieved_at_utc": "2026-10-23T03:07:53.693586+00:00",
+  "audio": {
+    "file": "audio.opus",
+    "sha256": "dab013effa94fc9a029247a2335249362316e0ac866c48f36e15cf95ddb7c7d8",
+    "size_bytes": 9328,
+    "modified": false
+  },
+  "reference": {
+    "file": "reference.txt",
+    "language": "zh",
+    "provenance": "user_provided_correction",
+    "alignment": null
+  },
+  "source_urls": {
+    "segment": "http://192.168.177.100:8000/v1/segments/107b514e-3b27-4aed-b2ef-4d81beff6590",
+    "audio": "http://192.168.177.100:8000/v1/segments/107b514e-3b27-4aed-b2ef-4d81beff6590/audio"
+  },
+  "source_segment": {
+    "segment_id": "107b514e-3b27-4aed-b2ef-4d81beff6590",
+    "session_id": "3b60a587-9cd5-4e2c-9510-262d610a74d0",
+    "started_at_utc_ms": 1792687956196,
+    "duration_ms": 4140,
+    "codec": "opus",
+    "capture_mode": "vad",
+    "vad_enabled": 1,
+    "bitrate_kbps": 16,
+    "source_ref": "android://daytrace/3b60a587-9cd5-4e2c-9510-262d610a74d0/107b514e-3b27-4aed-b2ef-4d81beff6590.dta",
+    "original_filename": "audio-2130865916700899868.opus",
+    "mime_type": "audio/ogg",
+    "file_path": "/var/lib/daytrace/data/audio/107b514e-3b27-4aed-b2ef-4d81beff6590.opus",
+    "sha256": "dab013effa94fc9a029247a2335249362316e0ac866c48f36e15cf95ddb7c7d8",
+    "status": "completed",
+    "created_at_utc": "2026-10-23T02:00:44.308478+00:00",
+    "updated_at_utc": "2026-10-23T02:00:47.518771+00:00",
+    "metadata": {},
+    "transcript": {
+      "segment_id": "107b514e-3b27-4aed-b2ef-4d81beff6590",
+      "text": "现在是人生努力",
+      "language": "zh",
+      "model": "small",
+      "provider": "faster-whisper",
+      "duration_ms": 4140,
+      "confidence": -0.8096000611782074,
+      "created_at_utc": "2026-10-23T02:00:47.518771+00:00",
+      "chunks": [
+        {
+          "chunk_index": 0,
+          "start_ms": 1080,
+          "end_ms": 3260,
+          "text": "现在是人生努力",
+          "confidence": -0.8096000611782074,
+          "words": [
+            {
+              "start_ms": 1080,
+              "end_ms": 1740,
+              "text": "现在",
+              "confidence": 0.2626171112060547
+            },
+            {
+              "start_ms": 1740,
+              "end_ms": 2180,
+              "text": "是",
+              "confidence": 0.9320406317710876
+            },
+            {
+              "start_ms": 2180,
+              "end_ms": 2520,
+              "text": "人",
+              "confidence": 0.9420621991157532
+            },
+            {
+              "start_ms": 2520,
+              "end_ms": 2840,
+              "text": "生",
+              "confidence": 0.9102314114570618
+            },
+            {
+              "start_ms": 2840,
+              "end_ms": 3080,
+              "text": "努",
+              "confidence": 0.4922325052320957
+            },
+            {
+              "start_ms": 3080,
+              "end_ms": 3260,
+              "text": "力",
+              "confidence": 0.9381895661354065
+            }
+          ]
+        }
+      ]
+    }
+  }
+}
