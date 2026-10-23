@@ -144,17 +144,47 @@ class Database:
                 result.pop("error", None)
             return result
 
-    def list_segments(self, session_id: str | None, limit: int, offset: int) -> list[dict[str, Any]]:
+    def list_segments(
+        self, session_id: str | None, limit: int, offset: int,
+        status: str | None = None, q: str | None = None,
+        from_utc_ms: int | None = None, to_utc_ms: int | None = None,
+    ) -> dict[str, Any]:
+        clauses: list[str] = []
+        args: list[Any] = []
+        for clause, value in [
+            ("s.session_id = ?", session_id),
+            ("s.status = ?", status),
+            ("s.started_at_utc_ms < ?", to_utc_ms),
+        ]:
+            if value is not None:
+                clauses.append(clause)
+                args.append(value)
+        if from_utc_ms is not None:
+            clauses.append("(s.started_at_utc_ms + s.duration_ms > ? OR "
+                           "(s.duration_ms = 0 AND s.started_at_utc_ms >= ?))")
+            args.extend([from_utc_ms, from_utc_ms])
+        if q:
+            clauses.append("(instr(lower(s.segment_id), lower(?)) > 0 OR "
+                           "instr(lower(s.session_id), lower(?)) > 0 OR "
+                           "instr(lower(COALESCE(t.text, '')), lower(?)) > 0)")
+            args.extend([q, q, q])
+        where = " WHERE " + " AND ".join(clauses) if clauses else ""
+        source = " FROM audio_segments s LEFT JOIN transcripts t ON t.segment_id = s.segment_id"
         with self.connect() as connection:
-            if session_id:
-                rows = connection.execute(
-                    "SELECT * FROM audio_segments WHERE session_id = ? "
-                    "ORDER BY started_at_utc_ms DESC LIMIT ? OFFSET ?",
-                    (session_id, limit, offset),
-                ).fetchall()
-            else:
-                rows = connection.execute(
-                    "SELECT * FROM audio_segments ORDER BY started_at_utc_ms DESC LIMIT ? OFFSET ?",
-                    (limit, offset),
-                ).fetchall()
-            return [dict(row) for row in rows]
+            # Keep counts and the page in one read snapshot during concurrent uploads.
+            connection.execute("BEGIN")
+            summary = dict(connection.execute(
+                "SELECT COUNT(*) AS total, COALESCE(SUM(s.duration_ms), 0) AS duration_ms, "
+                "COUNT(CASE WHEN s.status = 'completed' THEN 1 END) AS completed, "
+                "COUNT(CASE WHEN s.status = 'failed' THEN 1 END) AS failed, "
+                "COUNT(CASE WHEN s.status = 'processing' THEN 1 END) AS processing"
+                + source + where, args,
+            ).fetchone())
+            rows = connection.execute(
+                "SELECT s.*, substr(t.text, 1, 240) AS transcript_preview, "
+                "t.model AS asr_model, t.provider AS asr_provider, t.language AS asr_language"
+                + source + where + " ORDER BY s.started_at_utc_ms DESC, s.segment_id LIMIT ? OFFSET ?",
+                args + [limit, offset],
+            ).fetchall()
+        return {"items": [dict(row) for row in rows], "total": summary["total"],
+                "summary": summary, "limit": limit, "offset": offset}

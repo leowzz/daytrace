@@ -6,10 +6,11 @@ import os
 import tempfile
 import uuid
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 from fastapi import Body, FastAPI, File, Form, HTTPException, Query, UploadFile
-from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse, JSONResponse
+from fastapi.staticfiles import StaticFiles
 
 from .asr import ASRResult, ASRUnavailableError, build_asr
 from .config import Settings, load_settings
@@ -20,6 +21,19 @@ app = FastAPI(title="DayTrace Server", version="0.1.0")
 settings: Settings = load_settings()
 database = Database(settings.database_url, settings.data_dir)
 asr_engine = None
+web_dir = Path(__file__).parent / "web"
+app.mount("/static", StaticFiles(directory=web_dir), name="static")
+
+
+@app.get("/", include_in_schema=False)
+@app.get("/viewer", include_in_schema=False)
+def viewer() -> FileResponse:
+    return FileResponse(web_dir / "index.html", headers={"Cache-Control": "no-cache"})
+
+
+def _validate_time_range(from_utc_ms: int | None, to_utc_ms: int | None) -> None:
+    if from_utc_ms is not None and to_utc_ms is not None and from_utc_ms >= to_utc_ms:
+        raise HTTPException(status_code=422, detail="from_utc_ms must be less than to_utc_ms")
 
 
 @app.on_event("startup")
@@ -294,15 +308,27 @@ def list_capture_events(
     session_id: str | None = Query(default=None),
     limit: int = Query(default=100, ge=1, le=500),
     offset: int = Query(default=0, ge=0),
+    from_utc_ms: int | None = Query(default=None, ge=0),
+    to_utc_ms: int | None = Query(default=None, ge=0),
 ) -> dict[str, Any]:
+    _validate_time_range(from_utc_ms, to_utc_ms)
+    clauses, args = [], []
+    for clause, value in [("session_id=?", session_id), ("observed_at_utc_ms >= ?", from_utc_ms),
+                          ("observed_at_utc_ms < ?", to_utc_ms)]:
+        if value is not None:
+            clauses.append(clause)
+            args.append(value)
+    where = " WHERE " + " AND ".join(clauses) if clauses else ""
     with database.connect() as connection:
-        where = " WHERE session_id=?" if session_id is not None else ""
-        args = ([session_id] if session_id is not None else []) + [limit, offset]
+        connection.execute("BEGIN")
+        total = connection.execute("SELECT COUNT(*) FROM capture_events" + where, args).fetchone()[0]
         rows = connection.execute(
-            "SELECT * FROM capture_events" + where + " ORDER BY observed_at_utc_ms DESC, event_id LIMIT ? OFFSET ?", args
+            "SELECT * FROM capture_events" + where + " ORDER BY observed_at_utc_ms DESC, event_id LIMIT ? OFFSET ?",
+            args + [limit, offset],
         ).fetchall()
     return {"items": [{"event_id": row["event_id"], "source_id": row["source_id"],
-                       "payload": json.loads(row["payload_json"])} for row in rows], "limit": limit, "offset": offset}
+                       "payload": json.loads(row["payload_json"])} for row in rows],
+            "total": total, "limit": limit, "offset": offset}
 
 
 @app.get("/v1/segments")
@@ -310,8 +336,29 @@ def list_segments(
     session_id: str | None = Query(default=None),
     limit: int = Query(default=50, ge=1, le=200),
     offset: int = Query(default=0, ge=0),
+    status: Literal["processing", "completed", "failed"] | None = Query(default=None),
+    q: str | None = Query(default=None, max_length=500),
+    from_utc_ms: int | None = Query(default=None, ge=0),
+    to_utc_ms: int | None = Query(default=None, ge=0),
 ) -> dict[str, Any]:
-    return {"items": database.list_segments(session_id, limit, offset), "limit": limit, "offset": offset}
+    _validate_time_range(from_utc_ms, to_utc_ms)
+    return database.list_segments(session_id, limit, offset, status, q, from_utc_ms, to_utc_ms)
+
+
+@app.get("/v1/segments/{segment_id}/audio")
+def get_segment_audio(segment_id: str, download: bool = False) -> FileResponse:
+    segment = database.get_segment(segment_id)
+    if segment is None:
+        raise HTTPException(status_code=404, detail="segment not found")
+    path = Path(segment["file_path"]).resolve()
+    if not path.is_relative_to(settings.audio_dir.resolve()) or not path.is_file():
+        raise HTTPException(status_code=404, detail="original audio unavailable")
+    media_type = {".opus": "audio/ogg", ".ogg": "audio/ogg", ".wav": "audio/wav",
+                  ".mp3": "audio/mpeg", ".m4a": "audio/mp4", ".flac": "audio/flac"}.get(
+                      path.suffix.lower(), "application/octet-stream")
+    return FileResponse(path, media_type=media_type, filename=path.name,
+                        content_disposition_type="attachment" if download else "inline",
+                        headers={"Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff"})
 
 
 @app.get("/v1/segments/{segment_id}")

@@ -13,6 +13,23 @@ docker compose ps
 curl http://127.0.0.1:8000/health
 ```
 
+## 2026-10-23：数据与 ASR 查看页
+
+已更新到 [数据查看页](http://192.168.177.100:8000/)（`/viewer` 同样可用）。支持音频筛选、原音播放/下载、逐句和逐词定位、UTC 时间映射、模型信息及采集事件查看。
+
+当前镜像 `daytrace-server:cpu` 同时标记为 `daytrace-server:viewer-20261023`，镜像 ID 为 `sha256:ce34aa80d3d71d6311e450ae42baa87786e0f03ac6b6a1fc436623cbdabe1c64`。复用上一版本依赖（FastAPI 0.136.3 / Starlette 1.6.0，支持音频 Range），更新应用代码、静态文件及包配置；构建文件位于本机 `artifacts/deploy/server-viewer.Dockerfile`。本次无数据库结构迁移。
+
+更新前创建 SQLite online backup：`/data/daytrace/data/backups/pre-viewer-20261023T025536Z.sqlite3`。候选容器使用备份副本和只读原音挂载，通过页面、数据查询、事件分页与 Range 验证后切换正式实例。上线后健康检查正常，已有 18 段音频、29 条采集事件；逐表比对旧记录未改变，全部原音 SHA-256 和数据库完整性通过。测试数据仅存在隔离环境。
+
+本机 8 项接口测试通过；浏览器验证了句/词定位、越界保护、分页、搜索空结果、重置、失败提示、事件入口及手机布局。真实 Opus 已在浏览器成功解码加载。这些验证针对查看功能，不代表 ASR 准确率验收。页面与 API 沿用现有可信网络和无认证配置。
+
+回滚本次应用更新（保留新上传数据）：
+
+```bash
+docker tag daytrace-server:pre-viewer-20261023 daytrace-server:cpu
+docker compose -f /home/leo/work/daytrace/deploy/docker-compose.yml up -d --no-deps --timeout 240 daytrace-server
+```
+
 ## 2026-10-23：0.2.4 上传与采集事件更新
 
 已部署至 `http://192.168.177.100:8000`，运行镜像 `daytrace-server:cpu` 同时标记为 `daytrace-server:0.2.4`，镜像 ID 为 `sha256:b7132fb6c10df0a8f891c287c8c91db1be40d0315343cda7ecb4d14099b815fa`。

@@ -25,6 +25,8 @@
 
 `server/` 目录提供了一个 Python/FastAPI 后端：接收 Android 上传的音频片段、完整采集元数据和采集事件，保留原始音频，使用本地 faster-whisper 做 ASR，并将转写正文、相对时间片段和采集元数据写入 SQLite。启动和上传示例见 [server/README.md](server/README.md)。0.2.4 需同步更新服务端，以支持完整元数据回执和 `/v1/capture-events`；旧数据库启动时自动增加字段和事件表。
 
+服务根路径 `/`（或 `/viewer`）提供数据与 ASR 查看页：筛选片段、播放原音、对照全文与逐句/逐词偏移、查看采集事件和原始元数据。mock、失败和未知覆盖明确区分；时间按每个源片段的 UTC 锚点映射。页面用于人工核对，不自动评定转写准确率。
+
 ## 构建
 
 安装包：`artifacts/DayTrace-0.2.4-debug.apk`。

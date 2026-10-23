@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>DayTrace · 数据与转写</title>
+  <link rel="stylesheet" href="/static/viewer.css">
+  <script src="/static/viewer.js" defer></script>
+</head>
+<body>
+  <header class="masthead">
+    <a class="brand" href="/">D<span>DayTrace</span></a>
+    <span class="header-note">音频记录 / 证据回看</span>
+    <a class="api-link" href="/docs" target="_blank" rel="noopener">API 文档 ↗</a>
+  </header>
+  <main>
+    <div class="intro"><div><p class="eyebrow">RECORDS & TRANSCRIPTS</p><h1>每段声音，都有迹可循。</h1>
+      <p class="muted">查看已上传的录音，对照原音检查 ASR 内容与时间对齐。</p></div>
+      <button id="refresh" class="secondary" type="button">↻ 刷新数据</button>
+    </div>
+    <div class="coverage-note">片段之外的覆盖情况未知，不能据此推断静音或没有事件。转写可能有误，请以原音核对。</div>
+    <nav class="tabs" aria-label="数据类型">
+      <button id="segments-tab" type="button" aria-pressed="true">音频与转写</button>
+      <button id="events-tab" type="button" aria-pressed="false">采集事件</button>
+    </nav>
+    <form id="filters" class="filters">
+      <label>会话 ID<input id="session" name="session" placeholder="全部会话 · 输入完整 ID" autocomplete="off"></label>
+      <label>开始时间（本地）<input id="from" type="datetime-local" step="1"></label>
+      <label>结束时间（本地）<input id="to" type="datetime-local" step="1"></label>
+      <label class="segment-filter">ASR 状态<select id="status"><option value="">全部状态</option><option value="completed">已完成</option><option value="processing">处理中</option><option value="failed">失败</option></select></label>
+      <label class="segment-filter search">搜索<input id="query" maxlength="500" placeholder="转写文本 / 片段 ID / 会话 ID"></label>
+      <div class="filter-actions"><button type="submit">筛选</button><button id="reset-filters" type="button" class="secondary">重置</button></div>
+    </form>
+    <p id="timezone" class="caption"></p>
+    <div id="feedback" role="status" aria-live="polite"></div>
+    <section id="stats" class="stats" aria-label="筛选结果统计"></section>
+    <div class="workspace">
+      <section class="panel records" aria-label="数据列表">
+        <div class="panel-heading"><h2 id="list-title">音频片段</h2><span id="result-count" class="caption"></span></div>
+        <div id="list" aria-busy="true"></div>
+        <div class="pagination"><button id="prev" class="secondary" type="button" disabled>← 上一页</button><span id="page" class="caption"></span><button id="next" class="secondary" type="button" disabled>下一页 →</button></div>
+      </section>
+      <section id="detail" class="panel detail" aria-label="详情"><div class="empty">选择一条记录，查看原音与证据。</div></section>
+    </div>
+    <footer>DayTrace · 仅展示已保存的音频、转写与采集事件。采集事件时间为观察时间；设备时钟与 ASR 对齐均可能存在误差。</footer>
+  </main>
+</body>
+</html>
