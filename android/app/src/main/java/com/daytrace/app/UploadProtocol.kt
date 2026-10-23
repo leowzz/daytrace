@@ -58,6 +58,10 @@ object UploadProtocol {
             json.optString("sha256") == metadata.getString("sha256") && json.optString("status") == "completed") {
             "服务响应未确认片段、时间或校验值；未标记上传成功，请重试。"
         }
+        val stored = json.optJSONObject("metadata")
+        check(stored != null && metadata.keys().asSequence().all { stored.opt(it)?.toString() == metadata.get(it).toString() }) {
+            "服务未确认完整采集元数据，请更新服务端后重试。"
+        }
     }
 
     fun uploadEvents(address: String, sourceId: String, events: JSONArray) {

@@ -7,10 +7,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
-import org.json.JSONArray
-import org.json.JSONObject
 import java.io.File
-import java.io.RandomAccessFile
 import java.util.UUID
 
 data class UploadProgress(val busy: Boolean = false, val message: String = "", val target: String = "")
@@ -32,6 +29,7 @@ class UploadManager(private val context: Context, private val store: RecordingSt
         // Remove plaintext left only by a process death during export/upload.
         File(context.cacheDir, "uploads").listFiles()?.filter { it.isFile }?.forEach { it.delete() }
         if (ledger.interruptedCount > 0) logs.add("上传", "发现 ${ledger.interruptedCount} 个中断上传，保留本地音频，可手动重试。", true)
+        ledger.recoveryMessage?.let { logs.add("上传状态恢复", it, true) }
     }
 
     @Synchronized fun start(address: String, selected: List<Segment>) {
@@ -60,12 +58,14 @@ class UploadManager(private val context: Context, private val store: RecordingSt
                     logs.add("上传", "开始片段 $id；session_id=${segment.info.header.sessionId}")
                     val directory = File(context.cacheDir, "uploads").apply { mkdirs() }
                     val extension = if (segment.info.header.codec == "opus") "opus" else "wav"
-                    val temp = File.createTempFile("audio-", ".$extension", directory)
+                    var temp: File? = null
                     try {
+                        val audio = File.createTempFile("audio-", ".$extension", directory)
+                        temp = audio
                         // Complete authenticated export before sending any audio to the server.
-                        temp.outputStream().use { EncryptedAudio.export(segment.file, store.key, it) }
-                        val metadata = UploadProtocol.metadata(segment.info, segment.file.name, UploadProtocol.fileHash(temp))
-                        UploadProtocol.upload(target, temp, metadata)
+                        audio.outputStream().use { EncryptedAudio.export(segment.file, store.key, it) }
+                        val metadata = UploadProtocol.metadata(segment.info, segment.file.name, UploadProtocol.fileHash(audio))
+                        UploadProtocol.upload(target, audio, metadata)
                         ledger.record(target, id, "completed", "已上传 · 服务端处理完成")
                         success++
                         logs.add("上传成功", "片段 $id；${segment.info.durationMs} ms；服务端已确认音频和时间信息。")
@@ -74,7 +74,7 @@ class UploadManager(private val context: Context, private val store: RecordingSt
                         val message = e.message ?: "网络或本地文件异常"
                         ledger.record(target, id, "failed", message)
                         logs.add("上传失败", "片段 $id：$message；保留本地原件，可重试。", true)
-                    } finally { temp.delete() }
+                    } finally { temp?.delete() }
                 }
                 val message = "同步结束：音频成功 $success，失败 $failed；" +
                     if (journalFailure == null) "采集事件已同步。" else "采集事件同步失败，请重试（$journalFailure）。"
@@ -89,36 +89,11 @@ class UploadManager(private val context: Context, private val store: RecordingSt
     }
 
     private fun syncJournal(target: String): Int {
-        if (!store.captureEvents.exists()) return 0
         var count = 0
-        RandomAccessFile(store.captureEvents, "r").use { input ->
-            val snapshotEnd = input.length()
-            val savedOffset = ledger.offset(target)
-            input.seek(if (savedOffset <= snapshotEnd) savedOffset else 0)
-            while (input.filePointer < snapshotEnd) {
-                val events = JSONArray()
-                var end = input.filePointer
-                while (events.length() < 100 && input.filePointer < snapshotEnd) {
-                    val start = input.filePointer
-                    val raw = input.readLine() ?: break
-                    val next = input.filePointer
-                    input.seek(next - 1)
-                    val complete = input.read() == 10
-                    if (!complete || next > snapshotEnd) break
-                    val line = String(raw.toByteArray(Charsets.ISO_8859_1), Charsets.UTF_8)
-                    if (line.isNotBlank()) {
-                        val payload = JSONObject(line)
-                        val id = UploadProtocol.sha256("$sourceId:$start:$line".toByteArray(Charsets.UTF_8))
-                        events.put(JSONObject().put("event_id", id).put("payload", payload))
-                    }
-                    end = next
-                }
-                if (events.length() == 0) break
-                UploadProtocol.uploadEvents(target, sourceId, events)
-                ledger.advance(target, end)
-                count += events.length()
-                if (input.filePointer != end) break // A partial tail is left for the next sync.
-            }
+        for (batch in CaptureJournal.batches(store.captureEvents, sourceId, ledger.offset(target))) {
+            UploadProtocol.uploadEvents(target, sourceId, batch.events)
+            ledger.advance(target, batch.endOffset)
+            count += batch.events.length()
         }
         return count
     }

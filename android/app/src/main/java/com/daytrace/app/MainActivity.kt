@@ -29,6 +29,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -38,7 +39,8 @@ import java.util.Locale
 
 class MainActivity : ComponentActivity() {
     private val store get() = (application as DayTraceApp).store
-    private val serverPreferences by lazy { ServerPreferences(applicationContext) }
+    private val app get() = application as DayTraceApp
+    private val serverPreferences get() = app.serverPreferences
     private var feedback by mutableStateOf<String?>(null)
     private var playing by mutableStateOf<String?>(null)
     private var ioBusy by mutableStateOf(false)
@@ -182,7 +184,21 @@ class MainActivity : ComponentActivity() {
         val segments by store.segments.collectAsStateWithLifecycle()
         val settings by store.settings.collectAsStateWithLifecycle()
         val serverAddress by serverPreferences.address.collectAsStateWithLifecycle()
+        val upload by app.uploads.progress.collectAsStateWithLifecycle()
+        val receipts by app.uploads.receipts.collectAsStateWithLifecycle()
         var tab by remember { mutableIntStateOf(0) }
+        var logsRefresh by remember { mutableIntStateOf(0) }
+        var recentLogs by remember { mutableStateOf<List<LogEntry>>(emptyList()) }
+        LaunchedEffect(tab, logsRefresh) {
+            if (tab == 3) while (true) {
+                recentLogs = withContext(Dispatchers.IO) {
+                    runCatching { app.logs.recent() }.getOrElse {
+                        listOf(LogEntry("read-error", System.currentTimeMillis(), "ERROR", "日志", "日志读取失败：${it.message}"))
+                    }
+                }
+                delay(3000)
+            }
+        }
         var consent by remember { mutableStateOf(false) }
         var deleting by remember { mutableStateOf<Segment?>(null) }
         var deleteAll by remember { mutableStateOf(false) }
@@ -191,9 +207,9 @@ class MainActivity : ComponentActivity() {
         val totalMs = segments.sumOf { it.info.durationMs }
         Scaffold(containerColor = MaterialTheme.colorScheme.background, bottomBar = {
             NavigationBar(containerColor = MaterialTheme.colorScheme.surface) {
-                listOf("录音", "记录", "设置").forEachIndexed { index, name ->
+                listOf("录音", "记录", "设置", "日志").forEachIndexed { index, name ->
                     NavigationBarItem(selected = tab == index, onClick = { tab = index },
-                        icon = { Text(listOf("◉", "≡", "⚙")[index], fontSize = 24.sp) }, label = { Text(name) })
+                        icon = { Text(listOf("◉", "≡", "⚙", "☷")[index], fontSize = 24.sp) }, label = { Text(name) })
                 }
             }
         }) { padding ->
@@ -205,7 +221,7 @@ class MainActivity : ComponentActivity() {
                             Text("把声音留在时间里", color = Color(0xFF788179), fontSize = 13.sp)
                         }
                         Surface(color = Color(0xFFE3EDE3), shape = RoundedCornerShape(20.dp)) {
-                            Text("LOCAL / P1", Modifier.padding(horizontal = 12.dp, vertical = 7.dp), fontSize = 11.sp, color = Color(0xFF316C58))
+                            Text("v${BuildConfig.VERSION_NAME}", Modifier.padding(horizontal = 12.dp, vertical = 7.dp), fontSize = 11.sp, color = Color(0xFF316C58))
                         }
                     }
                 }
@@ -230,7 +246,7 @@ class MainActivity : ComponentActivity() {
                                 if (state.phase == Phase.RECORDING) command(RecordingService.PAUSE)
                                 else if (getPreferences(MODE_PRIVATE).getBoolean("consent", false)) requestStart()
                                 else consent = true
-                            }, enabled = !ioBusy && state.phase !in setOf(Phase.STARTING, Phase.STOPPING), modifier = Modifier.weight(1f).height(56.dp)) {
+                            }, enabled = !ioBusy && !upload.busy && state.phase !in setOf(Phase.STARTING, Phase.STOPPING), modifier = Modifier.weight(1f).height(56.dp)) {
                                 Text(when (state.phase) { Phase.RECORDING -> "暂停录音"; Phase.PAUSED -> "继续录音"; else -> "开始录音" })
                             }
                             OutlinedButton(onClick = { command(RecordingService.STOP) }, enabled = state.phase in setOf(Phase.RECORDING, Phase.PAUSED), modifier = Modifier.height(56.dp)) { Text("停止") }
@@ -250,13 +266,27 @@ class MainActivity : ComponentActivity() {
                     item { Text("声音时间线", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.SemiBold) }
                     item { Text("${segments.size} 段已保存。新录音按当前配置最长 ${settings.vadConfig.maximumSegmentMs} ms 分段；人声结束、暂停或停止也会保存有效尾段。", color = Color(0xFF788179), fontSize = 13.sp) }
                     item {
+                        Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
+                            Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Text("数据上传", fontWeight = FontWeight.SemiBold)
+                                Text(if (serverAddress.isBlank()) "请先到设置页保存服务地址。" else "服务：$serverAddress", fontSize = 12.sp)
+                                Button(enabled = !active && !ioBusy && !upload.busy && serverAddress.isNotBlank(), onClick = {
+                                    app.uploads.start(serverAddress, segments.toList())
+                                }, modifier = Modifier.fillMaxWidth()) { Text(if (upload.busy) "同步中…" else "上传待同步数据 / 重试失败项") }
+                                if (upload.busy) LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                                if (upload.message.isNotBlank()) Text("${upload.message}\n目标：${upload.target}", fontSize = 12.sp)
+                                Text("暂停后上传录音及采集事件；已成功的片段会跳过。上传期间请保持应用打开，详细结果可在日志页查看。", fontSize = 12.sp)
+                            }
+                        }
+                    }
+                    item {
                         OutlinedButton(onClick = { bundleExport.launch("DayTrace-analysis-${SimpleDateFormat("yyyyMMdd-HHmmss", Locale.US).format(Date())}.zip") },
                             enabled = !active && !ioBusy && segments.isNotEmpty(), modifier = Modifier.fillMaxWidth()) {
                             Text(if (ioBusy) "正在处理…" else "导出分析包（录音 + 时间线）")
                         }
                         Text("用于远端转写和事件回溯；含全部已保存录音、时间信息和采集日志。请先暂停。", fontSize = 12.sp, color = Color(0xFF788179))
                     }
-                    if (segments.isEmpty()) item { InfoCard("还没有录音", "开始录音后，声音会按时间保存在这里。所有音频仅留在本机。") }
+                    if (segments.isEmpty()) item { InfoCard("还没有录音", "开始录音后，声音会按时间保存在这里。手动上传前，音频仅保存在本机。") }
                     items(segments, key = { it.file.name }) { segment ->
                         Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
                             Column(Modifier.fillMaxWidth().padding(16.dp)) {
@@ -269,14 +299,28 @@ class MainActivity : ComponentActivity() {
                                         val name = "DayTrace-${SimpleDateFormat("yyyyMMdd-HHmmss", Locale.US).format(Date(segment.info.header.startedAt))}"
                                         if (segment.info.header.codec == "opus") opusExport.launch("$name.opus") else wavExport.launch("$name.wav")
                                     }, enabled = !ioBusy) { Text(if (segment.info.header.codec == "opus") "导出 Opus" else "导出 WAV") }
-                                    TextButton(onClick = { deleting = segment }, enabled = !ioBusy) { Text("删除", color = MaterialTheme.colorScheme.error) }
+                                    TextButton(onClick = { deleting = segment }, enabled = !ioBusy && !upload.busy) { Text("删除", color = MaterialTheme.colorScheme.error) }
+                                }
+                                val receipt = if (serverAddress.isBlank()) null else receipts[UploadLedger.key(serverAddress, segment.info.header.segmentId)]
+                                Text(receipt?.message ?: "尚未上传到当前服务", fontSize = 12.sp,
+                                    color = if (receipt?.status in listOf("failed", "interrupted")) MaterialTheme.colorScheme.error else Color(0xFF788179))
+                                TextButton(enabled = !active && !ioBusy && !upload.busy && serverAddress.isNotBlank() && receipt?.status != "completed",
+                                    onClick = { app.uploads.start(serverAddress, listOf(segment)) }) {
+                                    Text(if (receipt?.status in listOf("failed", "interrupted")) "重试上传" else "上传此片段")
                                 }
                             }
                         }
                     }
-                } else {
+                } else if (tab == 2) {
                     item { Text("服务设置", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.SemiBold) }
-                    item { ServerSettings(serverAddress) { serverPreferences.save(it) } }
+                    item {
+                        ServerSettings(serverAddress, enabled = !upload.busy, onTest = { address, result ->
+                            lifecycleScope.launch(Dispatchers.IO) { app.logs.add("连接测试", "$address：${result.message}", !result.success) }
+                        }) {
+                            serverPreferences.save(it)
+                            withContext(Dispatchers.IO) { app.logs.add("服务设置", "服务地址已保存：${ServerAddress.normalize(it)}") }
+                        }
+                    }
                     item { Text("录音设置", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.SemiBold) }
                     item {
                         Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
@@ -311,16 +355,26 @@ class MainActivity : ComponentActivity() {
                         }
                     }
                     item { InfoCard("本地存储", "音频使用 Android Keystore 密钥加密。最多保存 4 GB，剩余空间低于 128 MB 时停止并提示，不会自动覆盖旧录音。卸载应用会删除录音和密钥，请先导出。导出的 Opus / WAV 和分析包均未加密。") }
-                    item { InfoCard("当前版本", "已启用 Opus 压缩和 WebRTC VAD。人声检测可能误判，重要记录可关闭筛选。上传和 AI 总结尚未接入；长时间稳定性与耗电仍需实测。") }
+                    item { InfoCard("当前版本", "已启用 Opus 压缩、WebRTC VAD 和手动上传。录音上传后由服务端转写；应用尚未展示转写文本或 AI 总结。人声检测可能误判，重要记录可关闭筛选。") }
                     item {
                         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                             OutlinedButton(onClick = { startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:$packageName"))) }, modifier = Modifier.fillMaxWidth()) { Text("打开系统应用设置") }
                             OutlinedButton(onClick = { startActivity(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)) }, modifier = Modifier.fillMaxWidth()) { Text("打开电池优化设置") }
                             OutlinedButton(onClick = { csvExport.launch("DayTrace-diagnostics.csv") }, enabled = store.diagnostics.exists() && !ioBusy, modifier = Modifier.fillMaxWidth()) { Text("导出诊断 CSV") }
-                            TextButton(onClick = { deleteAll = true }, enabled = !active && !ioBusy && segments.isNotEmpty(), modifier = Modifier.fillMaxWidth()) { Text("删除全部录音", color = MaterialTheme.colorScheme.error) }
+                            TextButton(onClick = { deleteAll = true }, enabled = !active && !ioBusy && !upload.busy && segments.isNotEmpty(), modifier = Modifier.fillMaxWidth()) { Text("删除全部录音", color = MaterialTheme.colorScheme.error) }
                         }
                     }
                     item { Text("系统电池优化豁免：${if (getSystemService(PowerManager::class.java).isIgnoringBatteryOptimizations(packageName)) "已开启" else "未开启"}\n系统强行停止、重启或撤销权限会中断录音。应用会提示手动重新开始，不会绕过系统限制。", fontSize = 12.sp, color = Color(0xFF788179), lineHeight = 21.sp) }
+                } else {
+                    item {
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                            Text("最近日志", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.SemiBold)
+                            TextButton(onClick = { logsRefresh++ }) { Text("刷新") }
+                        }
+                        Text("最近 200 条，按时间倒序，每 3 秒刷新。包括采集事件、连接测试和上传结果；完整采集日志仍保留在分析包中。", fontSize = 12.sp)
+                    }
+                    if (recentLogs.isEmpty()) item { Text("暂无日志") }
+                    items(recentLogs, key = { it.id }) { LogCard(it) }
                 }
             }
         }
@@ -329,7 +383,7 @@ class MainActivity : ComponentActivity() {
             confirmButton = { TextButton(onClick = { consent = false; getPreferences(MODE_PRIVATE).edit().putBoolean("consent", true).apply(); requestStart() }) { Text("同意并开始") } },
             dismissButton = { TextButton(onClick = { consent = false }) { Text("取消") } })
         if (feedback != null) AlertDialog(onDismissRequest = { feedback = null }, title = { Text("DayTrace") }, text = { Text(feedback!!) }, confirmButton = { TextButton(onClick = { feedback = null }) { Text("知道了") } })
-        if (deleting != null || deleteAll) AlertDialog(onDismissRequest = { deleting = null; deleteAll = false }, title = { Text(if (deleteAll) "删除全部录音？" else "删除这段录音？") }, text = { Text("删除后无法恢复。已导出到其他位置的文件不会受影响。") },
+        if (deleting != null || deleteAll) AlertDialog(onDismissRequest = { deleting = null; deleteAll = false }, title = { Text(if (deleteAll) "删除全部录音？" else "删除这段录音？") }, text = { Text("删除本地录音后无法恢复。已上传到服务端或导出的文件不会删除；删除事件将在下次同步时上传。") },
             confirmButton = { TextButton(onClick = {
                 stopPlayback()
                 runCatching {

@@ -23,8 +23,8 @@ class ServerPreferences(context: Context) {
         val normalized = ServerAddress.normalize(input)
         withContext(Dispatchers.IO) {
             check(prefs.edit().putString("baseUrl", normalized).commit()) { "地址保存失败，请重试。" }
+            addressState.value = normalized
         }
-        addressState.value = normalized
     }
 }
 

@@ -9,6 +9,8 @@ DayTrace 的本地/自托管后端原型。它接收 Android 上传的音频片�
 - 默认使用本地 `faster-whisper`；开发时可设置 `DAYTRACE_ASR_BACKEND=mock` 做接口联调。
 - 转写正文、ASR 子片段、相对音频偏移和模型信息写入 SQLite。
 - `GET /v1/segments`、`GET /v1/segments/{segment_id}` 查询结果。
+- `POST /v1/capture-events`：每批 1–100 条采集事件，按稳定 `event_id` 幂等保存原始 JSON；`GET /v1/capture-events` 支持按 `session_id` 和分页查询。
+- 完整客户端元数据保存在 `audio_segments.metadata_json`，单段查询/上传响应以 `metadata` 对象返回，包括采样格式、来源、时间精度与未知覆盖说明。
 - ASR 失败会保留上传记录和音频，状态标记为 `failed`，不会伪造转写内容。
 
 ## 启动
@@ -46,7 +48,11 @@ curl.exe -X POST http://localhost:8000/v1/audio/segments `
   -F "metadata=$metadata"
 ```
 
-响应中的 `status` 为 `completed` 时，`transcript` 已经写入数据库；`failed` 时可以查看 `error`，修复 ASR 后重新上传同一个 `segment_id` 会更新该记录并再次处理。
+响应中的 `status` 为 `completed` 时，`transcript` 已经写入数据库；`failed` 时可以查看 `error`，修复 ASR 后重新上传同一个 `segment_id` 会再次处理。已完成的相同音频重传返回 HTTP 200 和现有结果，不重复执行 ASR；新上传成功返回 201。相同 ID 的音频、时间或已有元数据不一致返回 409，不覆盖旧证据。客户端提供 `sha256` 时会核对内容，校验失败返回 422。
+
+Android 0.2.4 的手动上传需要本版本服务端。现有数据库启动时自动新增 `metadata_json` 字段和 `capture_events` 表，不删除已有录音和转写。API 暂无认证。Android 当前只显示上传结果，尚未展示转写文本。
+
+采集事件请求结构为 `{"source_id":"安装实例标识","events":[{"event_id":"64位小写SHA-256","payload":{"event":"PAUSED","session_id":"...","observed_at_utc_ms":123,"data":{}}}]}`，成功响应按原序返回 `event_ids`。事件内容完整保留，冲突 ID 返回 409；事件中记录的删除仅描述本地删除，不删除服务端音频。缺少音频的区间仍是未知覆盖，不能据此推断静音。
 
 ## 数据库表
 

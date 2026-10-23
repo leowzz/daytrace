@@ -17,3 +17,8 @@
 - Android 测试 `speech-16k.pcm` 来自该提交的公开 `leak-test.wav`，8 kHz PCM16 通过确定性的样本复制转换为 16 kHz。仅测试 APK 包含，不是用户录音。
 
 JNI 资源管理、VAD 起止分段、Ogg 封装、加密存储和 UI 为本项目实现。源码随仓库交付，CMake 不使用未固定版本的在线下载。
+
+## 上传网络依赖
+
+- OkHttp 4.12.0：用于 multipart 音频和 JSON 采集事件上传，配置连接、写入、读取和整体请求超时；不跟随重定向，不自动重试上传。
+- MockWebServer 4.12.0 和 org.json 20240303 仅用于 JVM 测试，不打包到正式应用。

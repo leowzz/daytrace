@@ -10,7 +10,23 @@ import java.nio.file.StandardCopyOption
 data class UploadReceipt(val status: String, val message: String)
 
 class UploadLedger(private val file: File) {
-    private val data = if (file.exists()) JSONObject(file.readText()) else JSONObject()
+    var recoveryMessage: String? = null
+        private set
+    private var writable = true
+    private val data = try {
+        (if (file.exists()) JSONObject(file.readText()) else JSONObject()).also { json ->
+            json.keys().asSequence().filter { it.startsWith("audio:") }.forEach {
+                json.getJSONObject(it).getString("status")
+                json.getJSONObject(it).getString("message")
+            }
+        }
+    } catch (_: Exception) {
+        val backup = File(file.parentFile, "${file.name}.damaged-${System.currentTimeMillis()}")
+        writable = file.renameTo(backup)
+        recoveryMessage = if (writable) "上传状态文件损坏，原件已保留；片段需重新确认上传。"
+            else "上传状态文件无法读取且无法保留备份，上传已禁用；录音仍可使用。"
+        JSONObject()
+    }
     private val receiptsState = MutableStateFlow(readReceipts())
     val receipts = receiptsState.asStateFlow()
     val interruptedCount: Int
@@ -40,6 +56,7 @@ class UploadLedger(private val file: File) {
     }
 
     private fun persist() {
+        check(writable) { recoveryMessage ?: "上传状态无法保存" }
         val temp = File(file.parentFile, "${file.name}.tmp")
         temp.writeText(data.toString())
         Files.move(temp.toPath(), file.toPath(), StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE)

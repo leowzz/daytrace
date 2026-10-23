@@ -4,6 +4,7 @@ import hashlib
 import json
 import os
 import tempfile
+import uuid
 from pathlib import Path
 from typing import Any
 
@@ -178,7 +179,29 @@ async def upload_segment(
     source_ref = payload.get("source_ref")
     extension = Path(audio.filename or "audio").suffix or ".bin"
     destination = settings.audio_dir / f"{segment_id}{extension}"
-    digest, _ = await _save_upload(audio, destination, settings.max_upload_bytes)
+    staged = settings.audio_dir / f".ingest-{uuid.uuid4().hex}"
+    try:
+        digest, _ = await _save_upload(audio, staged, settings.max_upload_bytes)
+        if payload.get("sha256") is not None and payload["sha256"] != digest:
+            raise HTTPException(status_code=422, detail="audio SHA-256 does not match metadata")
+        previous = database.get_segment(segment_id)
+        if previous:
+            if (previous["sha256"] != digest or previous["session_id"] != session_id
+                    or previous["started_at_utc_ms"] != started_at or previous["duration_ms"] != duration_ms
+                    or previous["codec"] != codec):
+                raise HTTPException(status_code=409, detail="segment_id conflicts with existing audio or time anchors")
+            if any(previous["metadata"][key] != payload[key] for key in previous["metadata"].keys() & payload.keys()):
+                raise HTTPException(status_code=409, detail="segment metadata conflicts with existing evidence")
+            if previous["status"] == "completed" and Path(previous["file_path"]).exists():
+                # Retry after a lost response acknowledges the existing result without repeating ASR.
+                with database.transaction() as connection:
+                    merged = previous["metadata"] | payload
+                    connection.execute("UPDATE audio_segments SET metadata_json=? WHERE segment_id=?",
+                                       (json.dumps(merged, ensure_ascii=False), segment_id))
+                return JSONResponse(status_code=200, content=database.get_segment(segment_id))
+        os.replace(staged, destination)
+    finally:
+        staged.unlink(missing_ok=True)
     now = utc_now()
     with database.transaction() as connection:
         connection.execute(
