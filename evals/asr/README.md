@@ -2,6 +2,8 @@
 
 此目录保存纳入 Git 版本管理的原始音频与人工参考文本，用于比较后续 ASR 模型、语言设置和识别参数。当前只有一个样本，不能代表整体识别准确率。已提供单样本评测脚本，首次对比见 [2026-10-23 评测报告](REPORT-2026-10-23.md)。
 
+远端 Qwen3-ASR CPU 的后续实测见 [fn CPU 报告](REPORT-FN-CPU-2026-10-23.md)：包含 BF16 和动态 INT8 的速度、识别错误及内存限制。
+
 ## 样本 107b514e-3b27-4aed-b2ef-4d81beff6590
 
 - [原始音频](samples/107b514e-3b27-4aed-b2ef-4d81beff6590/audio.opus)：4.14 秒，Opus，VAD 采集；从服务端按原始字节下载，未转码、裁剪或拼接。
@@ -40,6 +42,10 @@ python evals/asr/download_models.py qwen3
 python evals/asr/benchmark.py --engine qwen3 --device cuda --model-dir artifacts/asr-benchmark/models/qwen3 --threads 4 --host-label my-gpu --output artifacts/asr-benchmark/my-qwen-gpu.json
 python evals/asr/benchmark.py --engine qwen3 --device cpu --model-dir artifacts/asr-benchmark/models/qwen3 --threads 8 --host-label my-cpu --output artifacts/asr-benchmark/my-qwen-cpu.json
 ```
+
+Qwen 的 `--dtype auto` 默认在 CPU 使用 FP32、CUDA 使用 BF16；可显式传入 `--dtype bfloat16` 测试 CPU 的低内存配置。不同精度必须分开记录，不能直接把 BF16 测量当作 FP32 性能。结果记录实际精度，Linux 额外记录进程峰值 RSS。
+
+CPU 还可使用 `--quantization dynamic-int8`：从原 BF16 checkpoint 加载，逐层转 FP32 并用 PyTorch FBGEMM 动态量化所有 Linear 层，其他模块使用 FP32。这是实验配置，非 Qwen 官方量化权重；应独立验证准确性。量化时间计入初始化，不计入热推理。脚本使用的 `torch.ao.quantization` API 已被上游标记弃用，重现时需固定记录中的 PyTorch 版本。Linux 每轮额外记录 CPU 时间和主缺页次数，帮助区分计算与磁盘换页影响。
 
 `--runs` 默认为 5，另计一次模型加载后的首次推理。结果记录模型 revision、运行库版本、样本哈希、原始文本、CER、冷/热耗时以及模型提供的原始时间信息。脚本不把人工参考、提示词或热词传给识别模型；仅指定已知语言。原始音频使用 PyAV 解码并重采样到 16 kHz mono，Opus pre-skip 由解码器处理，结果均为 66,240 个采样 / 4.14 秒。
 

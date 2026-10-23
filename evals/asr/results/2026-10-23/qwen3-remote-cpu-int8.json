@@ -1,0 +1,196 @@
+{
+  "created_at_utc": "2026-10-23T03:37:05.515491+00:00",
+  "engine": "qwen3",
+  "host": "fn-Xeon-E5-2680v4-12vCPU-Linux-container-8CPU",
+  "platform": "Linux-6.18.18.c1126-trim-x86_64-with-glibc2.34",
+  "python": "3.12.13",
+  "packages": {
+    "av": "19.0.2",
+    "numpy": "2.2.6",
+    "torch": "2.13.0+cpu",
+    "qwen-asr": "0.0.6",
+    "transformers": "4.57.6"
+  },
+  "threads": 8,
+  "device": "cpu",
+  "dtype": "float32",
+  "quantization": "dynamic-int8",
+  "quantized_linear_layers": 308,
+  "sample_id": "107b514e-3b27-4aed-b2ef-4d81beff6590",
+  "audio_sha256": "dab013effa94fc9a029247a2335249362316e0ac866c48f36e15cf95ddb7c7d8",
+  "duration_seconds": 4.14,
+  "audio_decode_seconds": 0.9002189480233938,
+  "model_init_seconds": 126.93804598180577,
+  "model_provenance": {
+    "repo": "Qwen/Qwen3-ASR-0.6B",
+    "revision": "5eb144179a02acc5e5ba31e748d22b0cf3e303b0",
+    "files": [
+      {
+        "file": "config.json",
+        "sha256": "76d3ae4601ce939830b2517f4a6cadb86cc51316c3900af6b020b051c21a478c",
+        "size": 6193
+      },
+      {
+        "file": "generation_config.json",
+        "sha256": "1da527824d81e07118facff437e03f2e24a23311e3bdeb2368973fe77e5f275c",
+        "size": 142
+      },
+      {
+        "file": "preprocessor_config.json",
+        "sha256": "45e120a4eda2c20c5d7f2ea9354e63536bf35e27aa573fb7cdf78017b378770d",
+        "size": 330
+      },
+      {
+        "file": "tokenizer_config.json",
+        "sha256": "4942d005604266809309cabc9f4e9cb89ce855d59b14681fdc0e1cc62ea26c4c",
+        "size": 12487
+      },
+      {
+        "file": "chat_template.json",
+        "sha256": "75a8cfca24f00de72d796fbfed6858fc9614ef3dabd8696684cc3bc03a9c58ff",
+        "size": 1161
+      },
+      {
+        "file": "merges.txt",
+        "sha256": "8831e4f1a044471340f7c0a83d7bd71306a5b867e95fd870f74d0c5308a904d5",
+        "size": 1671853
+      },
+      {
+        "file": "vocab.json",
+        "sha256": "ca10d7e9fb3ed18575dd1e277a2579c16d108e32f27439684afa0e10b1440910",
+        "size": 2776833
+      },
+      {
+        "file": "model.safetensors",
+        "sha256": "79d6cbd4c98c7bbffe9db2edac07f56cd6637d0d5944b27f6c2b8353840323ea",
+        "size": 1876091704
+      }
+    ]
+  },
+  "normalization": "NFKC, casefold, remove Unicode punctuation and whitespace; retain fillers",
+  "reference": "啊, 现在是人声录制",
+  "reference_sent_to_model": false,
+  "cold_run": {
+    "text": "啊，现在是人生录制。",
+    "language": "Chinese",
+    "timestamps": null,
+    "major_page_faults": 308,
+    "cpu_seconds": 6.7990789999999945,
+    "seconds": 7.18630851409398,
+    "rtf": 1.735823312583087,
+    "score": {
+      "normalized_reference": "啊现在是人声录制",
+      "normalized_hypothesis": "啊现在是人生录制",
+      "edit_distance": 1,
+      "reference_characters": 8,
+      "cer": 0.125,
+      "exact_match": false
+    }
+  },
+  "warm_runs": [
+    {
+      "text": "啊，现在是人生录制。",
+      "language": "Chinese",
+      "timestamps": null,
+      "major_page_faults": 1,
+      "cpu_seconds": 5.684482000000012,
+      "seconds": 0.7221636311151087,
+      "rtf": 0.1744356596896398,
+      "score": {
+        "normalized_reference": "啊现在是人声录制",
+        "normalized_hypothesis": "啊现在是人生录制",
+        "edit_distance": 1,
+        "reference_characters": 8,
+        "cer": 0.125,
+        "exact_match": false
+      }
+    },
+    {
+      "text": "啊，现在是人生录制。",
+      "language": "Chinese",
+      "timestamps": null,
+      "major_page_faults": 0,
+      "cpu_seconds": 6.027447000000006,
+      "seconds": 0.7845757668837905,
+      "rtf": 0.18951105480284797,
+      "score": {
+        "normalized_reference": "啊现在是人声录制",
+        "normalized_hypothesis": "啊现在是人生录制",
+        "edit_distance": 1,
+        "reference_characters": 8,
+        "cer": 0.125,
+        "exact_match": false
+      }
+    },
+    {
+      "text": "啊，现在是人生录制。",
+      "language": "Chinese",
+      "timestamps": null,
+      "major_page_faults": 5,
+      "cpu_seconds": 5.932340000000005,
+      "seconds": 0.8856532769277692,
+      "rtf": 0.21392591230139354,
+      "score": {
+        "normalized_reference": "啊现在是人声录制",
+        "normalized_hypothesis": "啊现在是人生录制",
+        "edit_distance": 1,
+        "reference_characters": 8,
+        "cer": 0.125,
+        "exact_match": false
+      }
+    },
+    {
+      "text": "啊，现在是人生录制。",
+      "language": "Chinese",
+      "timestamps": null,
+      "major_page_faults": 0,
+      "cpu_seconds": 5.7090680000000145,
+      "seconds": 0.7228594869375229,
+      "rtf": 0.17460374080616498,
+      "score": {
+        "normalized_reference": "啊现在是人声录制",
+        "normalized_hypothesis": "啊现在是人生录制",
+        "edit_distance": 1,
+        "reference_characters": 8,
+        "cer": 0.125,
+        "exact_match": false
+      }
+    },
+    {
+      "text": "啊，现在是人生录制。",
+      "language": "Chinese",
+      "timestamps": null,
+      "major_page_faults": 1,
+      "cpu_seconds": 5.72151900000001,
+      "seconds": 0.7375236179213971,
+      "rtf": 0.17814580143028916,
+      "score": {
+        "normalized_reference": "啊现在是人声录制",
+        "normalized_hypothesis": "啊现在是人生录制",
+        "edit_distance": 1,
+        "reference_characters": 8,
+        "cer": 0.125,
+        "exact_match": false
+      }
+    }
+  ],
+  "warm_median_seconds": 0.7375236179213971,
+  "warm_median_rtf": 0.17814580143028916,
+  "historical_baseline": {
+    "text": "现在是人生努力",
+    "score": {
+      "normalized_reference": "啊现在是人声录制",
+      "normalized_hypothesis": "现在是人生努力",
+      "edit_distance": 4,
+      "reference_characters": 8,
+      "cer": 0.5,
+      "exact_match": false
+    }
+  },
+  "limitations": [
+    "one short sample, not a general accuracy estimate",
+    "excludes network and endpoint detection latency",
+    "streaming replay is unpaced; audio_supplied_ms is input offset, not measured wall-clock latency"
+  ],
+  "process_peak_rss_bytes": 2713161728
+}
