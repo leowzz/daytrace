@@ -1,0 +1,287 @@
+{
+  "created_at_utc": "2026-10-23T03:18:14.638670+00:00",
+  "engine": "paraformer-streaming",
+  "host": "Xeon-E5-2680v4-12vCPU-Linux-container-8CPU",
+  "platform": "Linux-6.18.18.c1126-trim-x86_64-with-glibc2.34",
+  "python": "3.12.13",
+  "packages": {
+    "sherpa-onnx": "1.13.8",
+    "av": "19.0.2",
+    "numpy": "2.2.6",
+    "torch": "2.13.0+cpu",
+    "transformers": "5.16.1"
+  },
+  "threads": 8,
+  "device": "cpu",
+  "sample_id": "107b514e-3b27-4aed-b2ef-4d81beff6590",
+  "audio_sha256": "dab013effa94fc9a029247a2335249362316e0ac866c48f36e15cf95ddb7c7d8",
+  "duration_seconds": 4.14,
+  "audio_decode_seconds": 0.3478881421033293,
+  "model_init_seconds": 1.8471024129539728,
+  "model_provenance": {
+    "repo": "csukuangfj/sherpa-onnx-streaming-paraformer-bilingual-zh-en",
+    "revision": "8e40c43232a1c5c66c82111efc5820d3accca11b",
+    "files": [
+      {
+        "file": "encoder.int8.onnx",
+        "sha256": "81a70226a8934e6ed92aa1d4fc486b428b5398e2f2619ed4897b7294cab90e9a",
+        "size": 165462184
+      },
+      {
+        "file": "decoder.int8.onnx",
+        "sha256": "f3cca9f77bb9d93c8fcbfb63ae617b6b1ee96818df3aa3b151c40658fe38594f",
+        "size": 71664561
+      },
+      {
+        "file": "tokens.txt",
+        "sha256": "59aba8873a2ed1e122c25fee421e25f283b63290efbde85c1f01a853d83cb6e6",
+        "size": 75756
+      }
+    ]
+  },
+  "normalization": "NFKC, casefold, remove Unicode punctuation and whitespace; retain fillers",
+  "reference": "啊, 现在是人声录制",
+  "reference_sent_to_model": false,
+  "cold_run": {
+    "text": "哦现在是人生入职",
+    "partials": [
+      {
+        "audio_supplied_ms": 1300.0,
+        "text": "哦"
+      },
+      {
+        "audio_supplied_ms": 1900.0,
+        "text": "哦现"
+      },
+      {
+        "audio_supplied_ms": 2500.0,
+        "text": "哦现在是"
+      },
+      {
+        "audio_supplied_ms": 3100.0,
+        "text": "哦现在是人生"
+      },
+      {
+        "audio_supplied_ms": 3700.0,
+        "text": "哦现在是人生入职"
+      }
+    ],
+    "tail_padding_ms": 1000,
+    "timestamps": null,
+    "seconds": 0.6594405961222947,
+    "rtf": 0.15928516814548183,
+    "score": {
+      "normalized_reference": "啊现在是人声录制",
+      "normalized_hypothesis": "哦现在是人生入职",
+      "edit_distance": 4,
+      "reference_characters": 8,
+      "cer": 0.5,
+      "exact_match": false
+    }
+  },
+  "warm_runs": [
+    {
+      "text": "哦现在是人生入职",
+      "partials": [
+        {
+          "audio_supplied_ms": 1300.0,
+          "text": "哦"
+        },
+        {
+          "audio_supplied_ms": 1900.0,
+          "text": "哦现"
+        },
+        {
+          "audio_supplied_ms": 2500.0,
+          "text": "哦现在是"
+        },
+        {
+          "audio_supplied_ms": 3100.0,
+          "text": "哦现在是人生"
+        },
+        {
+          "audio_supplied_ms": 3700.0,
+          "text": "哦现在是人生入职"
+        }
+      ],
+      "tail_padding_ms": 1000,
+      "timestamps": null,
+      "seconds": 0.5286982411053032,
+      "rtf": 0.12770488915587033,
+      "score": {
+        "normalized_reference": "啊现在是人声录制",
+        "normalized_hypothesis": "哦现在是人生入职",
+        "edit_distance": 4,
+        "reference_characters": 8,
+        "cer": 0.5,
+        "exact_match": false
+      }
+    },
+    {
+      "text": "哦现在是人生入职",
+      "partials": [
+        {
+          "audio_supplied_ms": 1300.0,
+          "text": "哦"
+        },
+        {
+          "audio_supplied_ms": 1900.0,
+          "text": "哦现"
+        },
+        {
+          "audio_supplied_ms": 2500.0,
+          "text": "哦现在是"
+        },
+        {
+          "audio_supplied_ms": 3100.0,
+          "text": "哦现在是人生"
+        },
+        {
+          "audio_supplied_ms": 3700.0,
+          "text": "哦现在是人生入职"
+        }
+      ],
+      "tail_padding_ms": 1000,
+      "timestamps": null,
+      "seconds": 0.5188148459419608,
+      "rtf": 0.12531759563815478,
+      "score": {
+        "normalized_reference": "啊现在是人声录制",
+        "normalized_hypothesis": "哦现在是人生入职",
+        "edit_distance": 4,
+        "reference_characters": 8,
+        "cer": 0.5,
+        "exact_match": false
+      }
+    },
+    {
+      "text": "哦现在是人生入职",
+      "partials": [
+        {
+          "audio_supplied_ms": 1300.0,
+          "text": "哦"
+        },
+        {
+          "audio_supplied_ms": 1900.0,
+          "text": "哦现"
+        },
+        {
+          "audio_supplied_ms": 2500.0,
+          "text": "哦现在是"
+        },
+        {
+          "audio_supplied_ms": 3100.0,
+          "text": "哦现在是人生"
+        },
+        {
+          "audio_supplied_ms": 3700.0,
+          "text": "哦现在是人生入职"
+        }
+      ],
+      "tail_padding_ms": 1000,
+      "timestamps": null,
+      "seconds": 0.50919802300632,
+      "rtf": 0.12299469154742029,
+      "score": {
+        "normalized_reference": "啊现在是人声录制",
+        "normalized_hypothesis": "哦现在是人生入职",
+        "edit_distance": 4,
+        "reference_characters": 8,
+        "cer": 0.5,
+        "exact_match": false
+      }
+    },
+    {
+      "text": "哦现在是人生入职",
+      "partials": [
+        {
+          "audio_supplied_ms": 1300.0,
+          "text": "哦"
+        },
+        {
+          "audio_supplied_ms": 1900.0,
+          "text": "哦现"
+        },
+        {
+          "audio_supplied_ms": 2500.0,
+          "text": "哦现在是"
+        },
+        {
+          "audio_supplied_ms": 3100.0,
+          "text": "哦现在是人生"
+        },
+        {
+          "audio_supplied_ms": 3700.0,
+          "text": "哦现在是人生入职"
+        }
+      ],
+      "tail_padding_ms": 1000,
+      "timestamps": null,
+      "seconds": 0.5367250121198595,
+      "rtf": 0.12964372273426558,
+      "score": {
+        "normalized_reference": "啊现在是人声录制",
+        "normalized_hypothesis": "哦现在是人生入职",
+        "edit_distance": 4,
+        "reference_characters": 8,
+        "cer": 0.5,
+        "exact_match": false
+      }
+    },
+    {
+      "text": "哦现在是人生入职",
+      "partials": [
+        {
+          "audio_supplied_ms": 1300.0,
+          "text": "哦"
+        },
+        {
+          "audio_supplied_ms": 1900.0,
+          "text": "哦现"
+        },
+        {
+          "audio_supplied_ms": 2500.0,
+          "text": "哦现在是"
+        },
+        {
+          "audio_supplied_ms": 3100.0,
+          "text": "哦现在是人生"
+        },
+        {
+          "audio_supplied_ms": 3700.0,
+          "text": "哦现在是人生入职"
+        }
+      ],
+      "tail_padding_ms": 1000,
+      "timestamps": null,
+      "seconds": 0.5262372479774058,
+      "rtf": 0.12711044637135407,
+      "score": {
+        "normalized_reference": "啊现在是人声录制",
+        "normalized_hypothesis": "哦现在是人生入职",
+        "edit_distance": 4,
+        "reference_characters": 8,
+        "cer": 0.5,
+        "exact_match": false
+      }
+    }
+  ],
+  "warm_median_seconds": 0.5262372479774058,
+  "warm_median_rtf": 0.12711044637135407,
+  "historical_baseline": {
+    "text": "现在是人生努力",
+    "score": {
+      "normalized_reference": "啊现在是人声录制",
+      "normalized_hypothesis": "现在是人生努力",
+      "edit_distance": 4,
+      "reference_characters": 8,
+      "cer": 0.5,
+      "exact_match": false
+    }
+  },
+  "limitations": [
+    "one short sample, not a general accuracy estimate",
+    "excludes network and endpoint detection latency",
+    "streaming replay is unpaced; audio_supplied_ms is input offset, not measured wall-clock latency"
+  ]
+}

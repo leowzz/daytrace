@@ -1,0 +1,6 @@
+# Install a suitable PyTorch build separately; measured with torch 2.5.1+cu121.
+qwen-asr==0.0.6
+gradio==5.49.1
+librosa==0.11.0
+av==19.0.2
+numpy==2.2.6

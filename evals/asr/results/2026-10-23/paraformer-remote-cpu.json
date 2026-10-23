@@ -1,0 +1,204 @@
+{
+  "created_at_utc": "2026-10-23T03:18:20.316609+00:00",
+  "engine": "paraformer",
+  "host": "Xeon-E5-2680v4-12vCPU-Linux-container-8CPU",
+  "platform": "Linux-6.18.18.c1126-trim-x86_64-with-glibc2.34",
+  "python": "3.12.13",
+  "packages": {
+    "sherpa-onnx": "1.13.8",
+    "av": "19.0.2",
+    "numpy": "2.2.6",
+    "torch": "2.13.0+cpu",
+    "transformers": "5.16.1"
+  },
+  "threads": 8,
+  "device": "cpu",
+  "sample_id": "107b514e-3b27-4aed-b2ef-4d81beff6590",
+  "audio_sha256": "dab013effa94fc9a029247a2335249362316e0ac866c48f36e15cf95ddb7c7d8",
+  "duration_seconds": 4.14,
+  "audio_decode_seconds": 2.0132743988651782,
+  "model_init_seconds": 2.2074083471670747,
+  "model_provenance": {
+    "repo": "csukuangfj/sherpa-onnx-paraformer-zh-2024-03-09",
+    "revision": "906992d326ebf0c5171cde675aa0902be9e5bc6c",
+    "files": [
+      {
+        "file": "model.int8.onnx",
+        "sha256": "90bc03034ae1bef9575f8cc798cd1519c8be8aa9e8b458a033e32017ff4d584c",
+        "size": 227330205
+      },
+      {
+        "file": "tokens.txt",
+        "sha256": "6c0e3b35cece259829e6cb5b8d90d13db88f61ea3a2953d11898e4b2bfd7a2e2",
+        "size": 75354
+      }
+    ]
+  },
+  "normalization": "NFKC, casefold, remove Unicode punctuation and whitespace; retain fillers",
+  "reference": "啊, 现在是人声录制",
+  "reference_sent_to_model": false,
+  "cold_run": {
+    "text": "哦现在是人生入职",
+    "timestamps": [],
+    "tokens": [
+      "哦",
+      "现",
+      "在",
+      "是",
+      "人",
+      "生",
+      "入",
+      "职"
+    ],
+    "seconds": 0.09837508480995893,
+    "rtf": 0.02376209778018332,
+    "score": {
+      "normalized_reference": "啊现在是人声录制",
+      "normalized_hypothesis": "哦现在是人生入职",
+      "edit_distance": 4,
+      "reference_characters": 8,
+      "cer": 0.5,
+      "exact_match": false
+    }
+  },
+  "warm_runs": [
+    {
+      "text": "哦现在是人生入职",
+      "timestamps": [],
+      "tokens": [
+        "哦",
+        "现",
+        "在",
+        "是",
+        "人",
+        "生",
+        "入",
+        "职"
+      ],
+      "seconds": 0.09766087983734906,
+      "rtf": 0.023589584501775136,
+      "score": {
+        "normalized_reference": "啊现在是人声录制",
+        "normalized_hypothesis": "哦现在是人生入职",
+        "edit_distance": 4,
+        "reference_characters": 8,
+        "cer": 0.5,
+        "exact_match": false
+      }
+    },
+    {
+      "text": "哦现在是人生入职",
+      "timestamps": [],
+      "tokens": [
+        "哦",
+        "现",
+        "在",
+        "是",
+        "人",
+        "生",
+        "入",
+        "职"
+      ],
+      "seconds": 0.09251958993263543,
+      "rtf": 0.02234772703686846,
+      "score": {
+        "normalized_reference": "啊现在是人声录制",
+        "normalized_hypothesis": "哦现在是人生入职",
+        "edit_distance": 4,
+        "reference_characters": 8,
+        "cer": 0.5,
+        "exact_match": false
+      }
+    },
+    {
+      "text": "哦现在是人生入职",
+      "timestamps": [],
+      "tokens": [
+        "哦",
+        "现",
+        "在",
+        "是",
+        "人",
+        "生",
+        "入",
+        "职"
+      ],
+      "seconds": 0.09885331313125789,
+      "rtf": 0.0238776118674536,
+      "score": {
+        "normalized_reference": "啊现在是人声录制",
+        "normalized_hypothesis": "哦现在是人生入职",
+        "edit_distance": 4,
+        "reference_characters": 8,
+        "cer": 0.5,
+        "exact_match": false
+      }
+    },
+    {
+      "text": "哦现在是人生入职",
+      "timestamps": [],
+      "tokens": [
+        "哦",
+        "现",
+        "在",
+        "是",
+        "人",
+        "生",
+        "入",
+        "职"
+      ],
+      "seconds": 0.09513405803591013,
+      "rtf": 0.022979241071475878,
+      "score": {
+        "normalized_reference": "啊现在是人声录制",
+        "normalized_hypothesis": "哦现在是人生入职",
+        "edit_distance": 4,
+        "reference_characters": 8,
+        "cer": 0.5,
+        "exact_match": false
+      }
+    },
+    {
+      "text": "哦现在是人生入职",
+      "timestamps": [],
+      "tokens": [
+        "哦",
+        "现",
+        "在",
+        "是",
+        "人",
+        "生",
+        "入",
+        "职"
+      ],
+      "seconds": 0.09480950189754367,
+      "rtf": 0.0229008458689719,
+      "score": {
+        "normalized_reference": "啊现在是人声录制",
+        "normalized_hypothesis": "哦现在是人生入职",
+        "edit_distance": 4,
+        "reference_characters": 8,
+        "cer": 0.5,
+        "exact_match": false
+      }
+    }
+  ],
+  "warm_median_seconds": 0.09513405803591013,
+  "warm_median_rtf": 0.022979241071475878,
+  "historical_baseline": {
+    "text": "现在是人生努力",
+    "score": {
+      "normalized_reference": "啊现在是人声录制",
+      "normalized_hypothesis": "现在是人生努力",
+      "edit_distance": 4,
+      "reference_characters": 8,
+      "cer": 0.5,
+      "exact_match": false
+    }
+  },
+  "limitations": [
+    "one short sample, not a general accuracy estimate",
+    "excludes network and endpoint detection latency",
+    "streaming replay is unpaced; audio_supplied_ms is input offset, not measured wall-clock latency"
+  ]
+}
